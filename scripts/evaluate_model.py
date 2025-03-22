@@ -111,7 +111,7 @@ def main():
 
             predictor_params, zoomin_params = get_predictor_and_zoomin_params(args, dataset_name, eval_ritm=args.eval_ritm)
 
-            # For SimpleClick models, we usually need to interpolate the positional embedding
+            # For SimpleClick models, we need to interpolate the positional embedding
             if not args.eval_ritm:
                 interpolate_pos_embed_inference(model.backbone, zoomin_params['target_size'], args.device)
 
