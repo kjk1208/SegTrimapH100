@@ -41,20 +41,47 @@ class AdaptiveIoU(TrainMetric):
         self._epoch_iou_sum = 0.0
         self._epoch_batch_count = 0
 
+    # def update(self, pred, gt):
+    #     gt_mask = gt > 0.5
+    #     if self._from_logits:
+    #         pred = torch.sigmoid(pred)
+
+    #     gt_mask_area = torch.sum(gt_mask, dim=(1, 2)).detach().cpu().numpy()
+    #     if np.all(gt_mask_area == 0):
+    #         return
+
+    #     ignore_mask = gt == self._ignore_label
+    #     max_iou = _compute_iou(pred > self._iou_thresh, gt_mask, ignore_mask).mean()
+    #     best_thresh = self._iou_thresh
+    #     for t in [best_thresh - self._thresh_step, best_thresh + self._thresh_step]:
+    #         temp_iou = _compute_iou(pred > t, gt_mask, ignore_mask).mean()
+    #         if temp_iou > max_iou:
+    #             max_iou = temp_iou
+    #             best_thresh = t
+
+    #     self._iou_thresh = self._thresh_beta * self._iou_thresh + (1 - self._thresh_beta) * best_thresh
+    #     self._ema_iou = self._iou_beta * self._ema_iou + (1 - self._iou_beta) * max_iou
+    #     self._epoch_iou_sum += max_iou
+    #     self._epoch_batch_count += 1
     def update(self, pred, gt):
-        gt_mask = gt > 0.5
-        if self._from_logits:
-            pred = torch.sigmoid(pred)
+        # logits -> trimap class → foreground binary
+        if pred.dim() == 4 and pred.size(1) == 3:
+            pred = torch.argmax(pred, dim=1)  # [B, H, W]
+        pred_mask = (pred == 2)  # foreground class만 IoU 평가
+
+        gt_mask = (gt == 2)
+        ignore_mask = (gt == self._ignore_label)
 
         gt_mask_area = torch.sum(gt_mask, dim=(1, 2)).detach().cpu().numpy()
         if np.all(gt_mask_area == 0):
             return
 
-        ignore_mask = gt == self._ignore_label
-        max_iou = _compute_iou(pred > self._iou_thresh, gt_mask, ignore_mask).mean()
+        max_iou = _compute_iou(pred_mask, gt_mask, ignore_mask).mean()
         best_thresh = self._iou_thresh
+
+        # adaptive threshold logic 유지 (실제 효과 없음, dummy처럼 작동)
         for t in [best_thresh - self._thresh_step, best_thresh + self._thresh_step]:
-            temp_iou = _compute_iou(pred > t, gt_mask, ignore_mask).mean()
+            temp_iou = _compute_iou(pred_mask, gt_mask, ignore_mask).mean()
             if temp_iou > max_iou:
                 max_iou = temp_iou
                 best_thresh = t

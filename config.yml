@@ -1,5 +1,5 @@
 INTERACTIVE_MODELS_PATH: "./weights"
-EXPS_PATH: "/playpen-raid2/qinliu/models/model_0125_2023"
+EXPS_PATH: "./output"
 
 # Evaluation datasets
 GRABCUT_PATH: "/playpen-raid2/qinliu/data/GrabCut"
@@ -14,11 +14,15 @@ HARD_PATH: "/playpen-raid2/qinliu/data/HARD"
 
 # Train datasets
 SBD_PATH: "/playpen-raid2/qinliu/data/SBD/dataset"
-COCO_PATH: "/playpen-raid2/qinliu/data/COCO_2017"
-LVIS_v1_PATH: "/playpen-raid2/qinliu/data/COCO_2017"
+# COCO_PATH: "/playpen-raid2/qinliu/data/COCO_2017"
+# LVIS_v1_PATH: "/playpen-raid2/qinliu/data/COCO_2017"
+COCO_PATH: "./datasets/lvis_coco/train2017"
+LVIS_v1_PATH: "./datasets/lvis_coco/train2017"
 OPENIMAGES_PATH: "./datasets/OpenImages"
 PASCALVOC_PATH: "/playpen-raid2/qinliu/data/PascalVOC"
 ADE20K_PATH: "./datasets/ADE20K"
+AIM500_PATH: "./datasets/3.AIM-500"
+P3M10K_PATH: "./datasets/2.P3M-10k/P3M-10k/validation/P3M-500-NP"
 
 # You can download the weights for HRNet from the repository:
 # https://github.com/HRNet/HRNet-Image-Classification

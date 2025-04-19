@@ -34,8 +34,7 @@ class CocoLvisDataset(ISDataset):
 
     def get_sample(self, index) -> DSample:
         image_id, sample = self.dataset_samples[index]
-        image_path = self._images_path / f'{image_id}.jpg'
-
+        image_path = self._images_path / f'{image_id}.jpg'        
         image = cv2.imread(str(image_path))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 

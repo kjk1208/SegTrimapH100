@@ -31,7 +31,7 @@ class ISTrainer(object):
                  lr_scheduler=None,
                  metrics=None,
                  additional_val_metrics=None,
-                 net_inputs=('images', 'points'),
+                 net_inputs=('images', 'seg_mask'),
                  max_num_next_clicks=0,
                  click_models=None,
                  prev_mask_drop_prob=0.0,
@@ -67,7 +67,14 @@ class ISTrainer(object):
         self.trainset = trainset
         self.valset = valset
 
-        logger.info(f'Dataset of {trainset.get_samples_number()} samples was loaded for training.')
+        #logger.info(f'Dataset of {trainset.get_samples_number()} samples was loaded for training.')
+        
+        if hasattr(trainset, 'get_samples_number'):
+            total_train_samples = trainset.get_samples_number()
+        else:
+            total_train_samples = sum(d.get_samples_number() for d in trainset.datasets)
+
+        logger.info(f'Dataset of {total_train_samples} samples was loaded for training.')        
         logger.info(f'Dataset of {valset.get_samples_number()} samples was loaded for validation.')
 
         self.train_data = DataLoader(
@@ -170,7 +177,8 @@ class ISTrainer(object):
                     if '_loss' in k and hasattr(v, 'log_states') and self.loss_cfg.get(k + '_weight', 0.0) > 0:
                         v.log_states(self.sw, f'{log_prefix}Losses/{k}', global_step)
 
-                if self.image_dump_interval > 0 and global_step % self.image_dump_interval == 0:
+                # if self.image_dump_interval > 0 and global_step % self.image_dump_interval == 0:
+                if self.image_dump_interval > 0 and (global_step % self.image_dump_interval == 0 or i == len(self.train_data) - 1):
                     self.save_visualization(splitted_batch_data, outputs, global_step, prefix='train')
 
                 self.sw.add_scalar(tag=f'{log_prefix}States/learning_rate',
@@ -248,56 +256,48 @@ class ISTrainer(object):
         losses_logging = dict()
 
         with torch.set_grad_enabled(not validation):
+            # 모든 입력 텐서를 GPU로
             batch_data = {k: v.to(self.device) for k, v in batch_data.items()}
-            image, gt_mask, points = batch_data['images'], batch_data['instances'], batch_data['points']
-            orig_image, orig_gt_mask, orig_points = image.clone(), gt_mask.clone(), points.clone()
+            image = batch_data['images']              # [B, 3, H, W]
+            seg_mask = batch_data['seg_mask']         # [B, 1, H, W]
+            gt_trimap = batch_data['instances']       # [B, H, W]
 
-            prev_output = torch.zeros_like(image, dtype=torch.float32)[:, :1, :, :]
+            # prev_output, points 관련 불필요한 코드 제거함
 
-            last_click_indx = None
+            # 모델 forward
+            output = self.net(image, seg_mask)
+            
+            target_size = gt_trimap.shape[-2:]  # (H, W)
+            if output['instances'].shape[-2:] != target_size:
+                output['instances'] = torch.nn.functional.interpolate(
+                    output['instances'],
+                    size=target_size,
+                    mode='bilinear',
+                    align_corners=False
+                )
 
-            with torch.no_grad():
-                num_iters = random.randint(0, self.max_num_next_clicks)
-
-                for click_indx in range(num_iters):
-                    last_click_indx = click_indx
-
-                    if not validation:
-                        self.net.eval()
-
-                    if self.click_models is None or click_indx >= len(self.click_models):
-                        eval_model = self.net
-                    else:
-                        eval_model = self.click_models[click_indx]
-
-                    net_input = torch.cat((image, prev_output), dim=1) if self.net.with_prev_mask else image
-                    prev_output = torch.sigmoid(eval_model(net_input, points)['instances'])
-
-                    points = get_next_points(prev_output, orig_gt_mask, points, click_indx + 1)
-
-                    if not validation:
-                        self.net.train()
-
-                if self.net.with_prev_mask and self.prev_mask_drop_prob > 0 and last_click_indx is not None:
-                    zero_mask = np.random.random(size=prev_output.size(0)) < self.prev_mask_drop_prob
-                    prev_output[zero_mask] = torch.zeros_like(prev_output[zero_mask])
-
-            batch_data['points'] = points
-
-            net_input = torch.cat((image, prev_output), dim=1) if self.net.with_prev_mask else image
-            output = self.net(net_input, points)
-
+            if output['instances_aux'] is not None and output['instances_aux'].shape[-2:] != target_size:
+                output['instances_aux'] = torch.nn.functional.interpolate(
+                    output['instances_aux'],
+                    size=target_size,
+                    mode='bilinear',
+                    align_corners=False
+                )
+                
             loss = 0.0
+
+            # loss 계산
             loss = self.add_loss('instance_loss', loss, losses_logging, validation,
-                                 lambda: (output['instances'], batch_data['instances']))
+                                lambda: (output['instances'], gt_trimap))
             loss = self.add_loss('instance_aux_loss', loss, losses_logging, validation,
-                                 lambda: (output['instances_aux'], batch_data['instances']))
+                                lambda: (output['instances_aux'], gt_trimap))
 
             if self.is_master:
                 with torch.no_grad():
                     for m in metrics:
                         m.update(*(output.get(x) for x in m.pred_outputs),
-                                 *(batch_data[x] for x in m.gt_outputs))
+                                *(batch_data[x] for x in m.gt_outputs))
+
         return loss, losses_logging, batch_data, output
 
     def add_loss(self, loss_name, total_loss, losses_logging, validation, lambda_loss_inputs):
@@ -313,44 +313,98 @@ class ISTrainer(object):
 
         return total_loss
 
+    # def save_visualization(self, splitted_batch_data, outputs, global_step, prefix):
+    #     #kjk
+    #     output_images_path = self.cfg.VIS_PATH / prefix
+    #     if self.task_prefix:
+    #         output_images_path /= self.task_prefix
+
+    #     output_images_path.mkdir(parents=True, exist_ok=True)
+    #     image_name_prefix = f'{global_step:06d}'
+
+    #     def _save_image(suffix, image):
+    #         cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.png'),
+    #                     image, [cv2.IMWRITE_PNG_COMPRESSION, 3])  # PNG 저장
+
+    #     # 입력데이터
+    #     images = splitted_batch_data['images']                   # [B, 3, H, W]
+    #     gt_trimap = splitted_batch_data['instances']             # [B, H, W]
+    #     pred_logits = outputs['instances']                       # [B, 3, H, W]
+    #     pred_trimap = torch.argmax(pred_logits, dim=1)           # [B, H, W]
+
+    #     # 첫번째 배치만 저장
+    #     image = images[0].cpu().numpy().transpose(1, 2, 0) * 255
+    #     image = image.astype(np.uint8)
+    #     gt_mask = gt_trimap[0].cpu().numpy()        # [H, W] with class indices (0,1,2)
+    #     pred_mask = pred_trimap[0].cpu().numpy()    # [H, W]
+
+    #     # class index -> trimap 값 매핑
+    #     def map_trimap_values(mask):
+    #         mapped = np.zeros_like(mask, dtype=np.uint8)
+    #         mapped[mask == 0] = 0     # background
+    #         mapped[mask == 1] = 128   # unknown
+    #         mapped[mask == 2] = 255   # foreground
+    #         return mapped
+
+    #     gt_mask = map_trimap_values(gt_mask)
+    #     pred_mask = map_trimap_values(pred_mask)
+
+    #     _save_image('gt_trimap', gt_mask)
+    #     _save_image('pred_trimap', pred_mask)
+
     def save_visualization(self, splitted_batch_data, outputs, global_step, prefix):
         output_images_path = self.cfg.VIS_PATH / prefix
         if self.task_prefix:
             output_images_path /= self.task_prefix
 
-        if not output_images_path.exists():
-            output_images_path.mkdir(parents=True)
-        image_name_prefix = f'{global_step:06d}'
+        output_images_path.mkdir(parents=True, exist_ok=True)
 
-        def _save_image(suffix, image):
-            cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.jpg'),
-                        image, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        images = splitted_batch_data['images']                   # [B, 3, H, W]
+        seg_masks = splitted_batch_data['seg_mask']              # [B, 1, H, W]
+        gt_trimap = splitted_batch_data['instances']             # [B, H, W]
+        pred_logits = outputs['instances']                       # [B, 3, H, W]
+        pred_trimap = torch.argmax(pred_logits, dim=1)           # [B, H, W]
 
-        images = splitted_batch_data['images']
-        points = splitted_batch_data['points']
-        instance_masks = splitted_batch_data['instances']
+        batch_size = images.shape[0]
+        num_to_save = max(1, batch_size // 4)                    # 전체 배치 중 1/4 저장
 
-        gt_instance_masks = instance_masks.cpu().numpy()
-        predicted_instance_masks = torch.sigmoid(outputs['instances']).detach().cpu().numpy()
-        points = points.detach().cpu().numpy()
+        def map_trimap_values(mask):
+            mapped = np.zeros_like(mask, dtype=np.uint8)
+            mapped[mask == 0] = 0     # background
+            mapped[mask == 1] = 128   # unknown
+            mapped[mask == 2] = 255   # foreground
+            return mapped
 
-        image_blob, points = images[0], points[0]
-        gt_mask = np.squeeze(gt_instance_masks[0], axis=0)
-        predicted_mask = np.squeeze(predicted_instance_masks[0], axis=0)
+        def map_seg_mask(mask):
+            mapped = np.zeros_like(mask, dtype=np.uint8)
+            mapped[mask != 0] = 255
+            return mapped
 
-        image = image_blob.cpu().numpy() * 255
-        image = image.transpose((1, 2, 0))
+        for i in range(num_to_save):
+            image_name_prefix = f'{global_step:06d}_{i:02d}'
 
-        image_with_points = draw_points(image, points[:self.max_interactive_points], (0, 255, 0))
-        image_with_points = draw_points(image_with_points, points[self.max_interactive_points:], (0, 0, 255))
+            # Original image
+            image = images[i].cpu().numpy().transpose(1, 2, 0) * 255
+            image = image.astype(np.uint8)
 
-        gt_mask[gt_mask < 0] = 0.25
-        gt_mask = draw_probmap(gt_mask)
-        predicted_mask = draw_probmap(predicted_mask)
-        viz_image = np.hstack((image_with_points, gt_mask, predicted_mask)).astype(np.uint8)
+            # Segmentation mask (aux)
+            seg_mask = map_seg_mask(seg_masks[i].cpu().numpy().squeeze())
 
-        _save_image('instance_segmentation', viz_image[:, :, ::-1])
+            # GT trimap (0/128/255) and predicted trimap
+            gt_mask = map_trimap_values(gt_trimap[i].cpu().numpy())
+            pred_mask = map_trimap_values(pred_trimap[i].cpu().numpy())
 
+            def _save_image(suffix, image):
+                cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.png'),
+                            image, [cv2.IMWRITE_PNG_COMPRESSION, 3])
+
+            _save_image('image', image)
+            _save_image('seg_mask', seg_mask)
+            _save_image('gt_trimap', gt_mask)
+            _save_image('pred_trimap', pred_mask)
+
+
+    
     def _load_weights(self, net):
         if self.cfg.weights is not None:
             if os.path.isfile(self.cfg.weights):

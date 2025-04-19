@@ -102,7 +102,6 @@ def create_annotations(lvis_path: Path, coco_path: Path, dataset_split='train', 
 
 def get_coco_sample(dataset, index):
     dataset_sample = dataset.dataset_samples[index]
-
     image_path = dataset.images_path / dataset.get_image_name(dataset_sample['file_name'])
     label_path = dataset.labels_path / dataset_sample['file_name']
 

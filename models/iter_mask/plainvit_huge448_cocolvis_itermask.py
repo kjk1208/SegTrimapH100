@@ -1,3 +1,5 @@
+#model/iter_mask/plainvit_huge448_cocolvis_itermask.py
+
 from isegm.utils.exp_imports.default import *
 from isegm.model.modeling.transformer_helper.cross_entropy_loss import CrossEntropyLoss
 

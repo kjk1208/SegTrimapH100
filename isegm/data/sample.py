@@ -7,9 +7,11 @@ from albumentations import ReplayCompose
 
 class DSample:
     def __init__(self, image, encoded_masks, objects=None,
-                 objects_ids=None, ignore_ids=None, sample_id=None):
+                 objects_ids=None, ignore_ids=None, sample_id=None,
+                 gt_mask=None):
         self.image = image
         self.sample_id = sample_id
+        self.gt_mask = gt_mask
 
         if len(encoded_masks.shape) == 2:
             encoded_masks = encoded_masks[:, :, np.newaxis]
@@ -39,13 +41,23 @@ class DSample:
 
         self._augmented = False
         self._soft_mask_aug = None
-        self._original_data = self.image, self._encoded_masks, deepcopy(self._objects)
+        self._original_data = self.image, self._encoded_masks, deepcopy(self._objects), deepcopy(self.gt_mask)
 
     def augment(self, augmentator):
         self.reset_augmentation()
-        aug_output = augmentator(image=self.image, mask=self._encoded_masks)
-        self.image = aug_output['image']
-        self._encoded_masks = aug_output['mask']
+
+        if self.gt_mask is not None:
+            # masks를 리스트로 묶어서 encoded_masks와 gt_mask 둘 다 augmentation
+            aug_output = augmentator(image=self.image,
+                                    masks=[self._encoded_masks, self.gt_mask])
+            self.image = aug_output['image']
+            self._encoded_masks = aug_output['masks'][0]
+            self.gt_mask = aug_output['masks'][1]
+        else:
+            # 기존 방식 (gt_mask가 없는 경우)
+            aug_output = augmentator(image=self.image, mask=self._encoded_masks)
+            self.image = aug_output['image']
+            self._encoded_masks = aug_output['mask']
 
         aug_replay = aug_output.get('replay', None)
         if aug_replay:
@@ -61,10 +73,11 @@ class DSample:
     def reset_augmentation(self):
         if not self._augmented:
             return
-        orig_image, orig_masks, orig_objects = self._original_data
+        orig_image, orig_masks, orig_objects, orig_gt_mask = self._original_data
         self.image = orig_image
         self._encoded_masks = orig_masks
         self._objects = deepcopy(orig_objects)
+        self.gt_mask = orig_gt_mask
         self._augmented = False
         self._soft_mask_aug = None
 
@@ -101,10 +114,10 @@ class DSample:
     def objects_ids(self):
         return list(self._objects.keys())
 
-    # @property
-    def gt_mask(self, object_id=0):
-        # assert len(self._objects) == 1
-        return self.get_object_mask(self.objects_ids[object_id])
+    # # @property
+    # def gt_mask(self, object_id=0):
+    #     # assert len(self._objects) == 1
+    #     return self.get_object_mask(self.objects_ids[object_id])
 
     @property
     def root_objects(self):

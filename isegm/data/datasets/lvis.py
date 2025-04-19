@@ -23,7 +23,7 @@ class LvisDataset(ISDataset):
         self.split = split
         self.max_overlap_ratio = max_overlap_ratio
 
-        with open( dataset_path / split / f'lvis_{self.split}.json', 'r') as f:
+        with open( dataset_path / split / f'lvis_v1_{self.split}.json', 'r') as f:
             json_annotation = json.loads(f.read())
 
         self.annotations = defaultdict(list)
@@ -90,7 +90,7 @@ class LvisDataset(ISDataset):
 
     @staticmethod
     def generate_train_categories(dataset_path, train_categories_path):
-        with open(dataset_path / 'train/lvis_train.json', 'r') as f:
+        with open(dataset_path / 'train/lvis_v1_train.json', 'r') as f:
             annotation = json.load(f)
 
         with open(train_categories_path, 'w') as f:
