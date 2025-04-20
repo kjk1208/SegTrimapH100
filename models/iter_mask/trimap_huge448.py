@@ -20,7 +20,10 @@ def main(cfg):
 
 def init_model(cfg):
     model_cfg = edict()
-    model_cfg.crop_size = (448, 448)
+    #kjk20250419 input size change
+    #model_cfg.crop_size = (448, 448)
+    model_cfg.crop_size = (cfg.INPUT_SIZE, cfg.INPUT_SIZE)
+    #kjk20250419 input size change
     model_cfg.num_max_points = 24
 
     backbone_params = dict(
@@ -94,16 +97,24 @@ def train(model, cfg, model_cfg):
     # ], p=1.0)
     
     train_augmentator = Compose([
-        LongestMaxSize(max_size=448),
-        PadIfNeeded(min_height=448, min_width=448, border_mode=0),  # zero-padding
+        #kjk20250419 input size change
+        #LongestMaxSize(max_size=448),
+        LongestMaxSize(max_size=cfg.INPUT_SIZE),
+        #PadIfNeeded(min_height=448, min_width=448, border_mode=0),  # zero-padding
+        PadIfNeeded(min_height=cfg.INPUT_SIZE, min_width=cfg.INPUT_SIZE, border_mode=0),  # zero-padding
+        #kjk20250419 input size change
         HorizontalFlip(),
         RandomBrightnessContrast(brightness_limit=(-0.25, 0.25), contrast_limit=(-0.15, 0.4), p=0.75),
         RGBShift(r_shift_limit=10, g_shift_limit=10, b_shift_limit=10, p=0.75)
     ], p=1.0)
 
     val_augmentator = Compose([
-        LongestMaxSize(max_size=448),
-        PadIfNeeded(min_height=448, min_width=448, border_mode=0)
+        #kjk20250419 input size change
+        #LongestMaxSize(max_size=448),
+        LongestMaxSize(max_size=cfg.INPUT_SIZE),        
+        #PadIfNeeded(min_height=448, min_width=448, border_mode=0)
+        PadIfNeeded(min_height=cfg.INPUT_SIZE, min_width=cfg.INPUT_SIZE, border_mode=0)
+        #kjk20250419 input size change
     ], p=1.0)
 
     points_sampler = MultiPointSampler(model_cfg.num_max_points, prob_gamma=0.80,
@@ -117,7 +128,7 @@ def train(model, cfg, model_cfg):
         epoch_len=-1
     )
     trainset2 = P3M10KTrimapDataset(
-        dataset_path=cfg.P3M10K_PATH,     # config.yml 에 추가
+        dataset_path=cfg.P3M10K_TRAIN_PATH,     # config.yml 에 추가
         split='train',
         augmentator=train_augmentator,
         epoch_len=-1

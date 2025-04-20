@@ -56,6 +56,12 @@ def init_experiment(args, model_name):
         cfg.LOGS_PATH.mkdir(exist_ok=True)
         cfg.CHECKPOINTS_PATH.mkdir(exist_ok=True)
         cfg.VIS_PATH.mkdir(exist_ok=True)
+        
+        # # config.yml kjk20250420
+        # config_save_path = model_path.parent / 'config.yml'
+        # if config_save_path.exists():
+        #     shutil.copy(config_save_path, exp_path / 'config.yml')
+        # # config.yml kjk20250420
 
         dst_script_path = exp_path / (model_path.stem + datetime.strftime(datetime.today(), '_%Y-%m-%d-%H-%M-%S.py'))
         if args.temp_model_path:
