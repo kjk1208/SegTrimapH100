@@ -7,7 +7,7 @@
 # --ngpus=4 \
 # --upsample='x4'
 
-python train.py ./models/loss/trimap_aim500_am2k_huge448_nfl_dt_loss.py \
+python train.py ./models/loss/trimap_huge448_nfl_dt_loss.py \
 --batch-size=32 \
 --ngpus=4 \
 --upsample='x4'

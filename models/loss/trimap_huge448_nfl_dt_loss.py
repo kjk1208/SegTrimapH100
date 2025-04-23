@@ -7,12 +7,13 @@ from torch.nn import CrossEntropyLoss
 from isegm.data.datasets.aim500 import AIM500TrimapDataset
 from isegm.data.datasets.p3m10k import P3M10KTrimapDataset
 from isegm.data.datasets.am2k import AM2KTrimapDataset
+from isegm.data.datasets.composition import COMPOSITIONTrimapDataset
 from torch.utils.data import ConcatDataset
 
 from isegm.model.trimap_combineloss import CombinedLoss
 from isegm.model.losses import NormalizedFocalLossSoftmax, UnknownRegionDTLoss
 
-MODEL_NAME = 'p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss'
+MODEL_NAME = 'composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss'
 
 
 def main(cfg):
@@ -146,8 +147,14 @@ def train(model, cfg, model_cfg):
         augmentator=train_augmentator,
         epoch_len=-1
     )
+    trainset3 = COMPOSITIONTrimapDataset(
+        dataset_path=cfg.COMPOSITION431K_PATH,     # config.yml 에 추가
+        split='train',
+        augmentator=train_augmentator,
+        epoch_len=-1
+    )
     
-    trainset = ConcatDataset([trainset1, trainset2])
+    trainset = ConcatDataset([trainset1, trainset2, trainset3])
 
     valset = P3M10KTrimapDataset(
         dataset_path=cfg.P3M10K_TEST_PATH,
@@ -168,6 +175,7 @@ def train(model, cfg, model_cfg):
     
     logger.info(f'Trainset1 (AIM500): {len(trainset1)} samples')
     logger.info(f'Trainset2 (P3M10K): {len(trainset2)} samples')
+    logger.info(f'Trainset3 (COMPOSITION): {len(trainset3)} samples')
     
     total_samples = sum([d.get_samples_number() for d in trainset.datasets])
     logger.info(f'Dataset of {total_samples} samples was loaded for training.')

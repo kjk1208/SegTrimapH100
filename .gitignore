@@ -1,7 +1,7 @@
-output/
-weight/
-inference/
-datasets/
+/output/
+/weight/
+/inference/
+/datasets/
 
 # Models
 *.pth
