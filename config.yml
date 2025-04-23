@@ -23,6 +23,7 @@ OPENIMAGES_PATH: "./datasets/OpenImages"
 PASCALVOC_PATH: "/playpen-raid2/qinliu/data/PascalVOC"
 ADE20K_PATH: "./datasets/ADE20K"
 AIM500_PATH: "./datasets/3.AIM-500"
+AM2K_PATH: "./datasets/Seg2TrimapDataset/AM-2k"
 P3M10K_TRAIN_PATH: "./datasets/Seg2TrimapDataset/P3M-10k"
 
 #INPUT_SIZE : 672

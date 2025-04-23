@@ -2,9 +2,256 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import scipy.ndimage as ndi
 
 from isegm.utils import misc
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+import scipy.ndimage as ndi
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+import scipy.ndimage as ndi
+
+
+
+class UnknownRegionDTLoss(nn.Module):
+    def __init__(self, ignore_index=-1, reduction='mean', debug_print=True):
+        super().__init__()
+        self.ignore_index = ignore_index
+        self.reduction = reduction
+        self.debug = debug_print
+
+    def forward(self, pred_logits, target):
+        device = pred_logits.device
+        dtype = pred_logits.dtype
+        B, C, H, W = pred_logits.shape
+        pred_probs = F.softmax(pred_logits, dim=1)  # [B, C, H, W]
+        pred_unknown = pred_probs[:, 1, :, :]       # [B, H, W]
+
+        losses = []
+
+        for i in range(B):
+            target_i = target[i].cpu().numpy()
+            gt_unknown_mask = (target_i == 1).astype(np.float32)
+
+            if gt_unknown_mask.sum() == 0:
+                losses.append(torch.tensor(0.0, dtype=dtype, device=device))
+                continue
+
+            dist_map = ndi.distance_transform_edt(gt_unknown_mask).astype(np.float32)
+            dist_map = torch.from_numpy(dist_map).to(device=device, dtype=dtype)
+
+            # The code is assigning the value of `pred_unknown[i]` to the variable `pred_i`. The
+            # comment `# [H, W]` suggests that `pred_unknown[i]` is expected to be a 2D array with
+            # dimensions Height (H) and Width (W).
+            pred_i = pred_unknown[i]  # [H, W]
+            gt_mask_tensor = torch.from_numpy(gt_unknown_mask).to(device=device,dtype=dtype)
+
+            pred_error = (1.0 - pred_i) * gt_mask_tensor
+            weighted_error = pred_error * dist_map 
+
+            if self.debug:
+                print(f"[DEBUG][{i}] pred_i.dtype: {pred_i.dtype}")
+                print(f"[DEBUG][{i}] pred_error dtype: {pred_error.dtype}, dist_map dtype: {dist_map.dtype}, weighted_error dtype: {weighted_error.dtype}")
+                print(f"[DEBUG][{i}] Unknown pixel count: {gt_unknown_mask.sum()}")
+                print(f"[DEBUG][{i}] pred_error mean: {pred_error.mean().item():.6f}, dist_map max: {dist_map.max().item():.2f}")
+                print(f"[DEBUG][{i}] weighted_error stats: min={weighted_error.min().item():.12f}, max={weighted_error.max().item():.12f}, mean={weighted_error.mean().item():.12f}")
+
+            losses.append(weighted_error.mean())            
+
+        loss_tensor = torch.stack(losses)
+
+        if self.reduction == 'mean':
+            return loss_tensor.mean()
+        elif self.reduction == 'sum':
+            return loss_tensor.sum()
+        else:
+            return loss_tensor
+
+
+
+
+# class UnknownRegionDTLoss(nn.Module):
+#     """
+#     Distance Transform loss focused on the 'unknown' class (class index = 1 in trimap: 0=BG, 1=Unknown, 2=FG).
+#     This loss penalizes errors in predicting the unknown region using a distance-based weighting.
+#     """
+#     def __init__(self, ignore_index=-1, reduction='mean', debug_print=True):
+#         super().__init__()
+#         self.ignore_index = ignore_index
+#         self.reduction = reduction
+#         self.debug = debug_print
+
+#     def forward(self, pred_logits, target):
+#         """
+#         Args:
+#             pred_logits: [B, C, H, W] raw logits from model (before softmax)
+#             target: [B, H, W] int tensor with values in {0, 1, 2} (0=BG, 1=Unknown, 2=FG)
+#         Returns:
+#             Distance Transform weighted loss for the unknown class
+#         """
+#         device = pred_logits.device
+#         B, C, H, W = pred_logits.shape
+#         pred_probs = F.softmax(pred_logits, dim=1)  # [B, C, H, W]
+#         pred_unknown = pred_probs[:, 1, :, :]       # [B, H, W] - channel 1 = unknown
+
+#         losses = []
+
+#         for i in range(B):
+#             target_i = target[i].cpu().numpy()
+#             pred_i = pred_unknown[i]  # [H, W]
+
+#             # mask for unknown region
+#             gt_unknown_mask = (target_i == 1).astype(np.uint8)
+#             if np.sum(gt_unknown_mask) == 0:
+#                 losses.append(torch.tensor(0.0, dtype=pred_i.dtype, device=pred_i.device))
+#                 continue
+
+#             # distance from non-unknown pixels to unknown
+#             dist_map = ndi.distance_transform_edt(gt_unknown_mask)
+#             dist_map = torch.tensor(dist_map, dtype=pred_i.dtype, device=pred_i.device)
+
+#             # penalize low prediction in unknown region
+#             pred_error = (1.0 - pred_i) * torch.tensor(gt_unknown_mask, dtype=pred_i.dtype, device=pred_i.device)
+#             weighted_error = pred_error * dist_map
+
+#             losses.append(weighted_error.mean())
+            
+#             if self.debug:
+#                 print(f"[DEBUG][{i}] pred_i.dtype: {pred_i.dtype}")
+#                 print(f"[DEBUG][{i}] pred_error dtype: {pred_error.dtype}, dist_map dtype: {dist_map.dtype}, weighted_error dtype: {weighted_error.dtype}")
+#                 print(f"[DEBUG][{i}] Unknown pixel count: {gt_unknown_mask.sum()}")
+#                 print(f"[DEBUG][{i}] pred_error mean: {pred_error.mean().item():.6f}, dist_map max: {dist_map.max().item():.2f}")
+#                 print(f"[DEBUG][{i}] weighted_error stats: min={weighted_error.min().item():.12f}, max={weighted_error.max().item():.12f}, mean={weighted_error.mean().item():.12f}")
+
+#         if self.reduction == 'mean':
+#             return torch.stack(losses).mean()
+#         elif self.reduction == 'sum':
+#             return torch.stack(losses).sum()
+#         else:
+#             return torch.stack(losses)
+
+
+class NormalizedFocalLossSoftmax(nn.Module):
+    def __init__(self, gamma=2.0, ignore_index=-1, reduction='mean', eps=1e-12, debug_print=False):
+        super().__init__()
+        self.gamma = gamma
+        self.ignore_index = ignore_index
+        self.reduction = reduction
+        self.eps = eps
+        self.debug_print = debug_print  # 디버깅 출력 여부 (False: 끔, True: 켬)
+
+    def forward(self, inputs, targets):
+        B, C, H, W = inputs.shape
+        inputs = inputs.permute(0, 2, 3, 1).reshape(-1, C)  # [(B*H*W), C]
+        targets = targets.view(-1)                         # [(B*H*W)]
+
+        if self.debug_print:
+            try:
+                class_counts = torch.bincount(targets)
+            except:
+                class_counts = "Error in bincount"
+            print(f'[DEBUG] GT label counts: {class_counts}')
+
+        valid_mask = targets != self.ignore_index
+        inputs = inputs[valid_mask]
+        targets = targets[valid_mask]
+
+        if self.debug_print:
+            print(f'[DEBUG] Valid pixel count: {valid_mask.sum().item()}')
+
+        if targets.numel() == 0:
+            if self.debug_print:
+                print("[DEBUG] No valid targets remaining.")
+            return torch.tensor(0.0, dtype=inputs.dtype, device=inputs.device, requires_grad=True)
+
+        if self.debug_print:
+            print(f'[DEBUG] Input logits stats: mean={inputs.mean().item():.6f}, std={inputs.std().item():.6f}')
+
+        log_probs = F.log_softmax(inputs, dim=-1)                    # [N, C]
+        probs = torch.exp(log_probs)                                # [N, C]
+        pt = probs[torch.arange(len(targets)), targets]             # [N]
+        log_pt = log_probs[torch.arange(len(targets)), targets]     # [N]
+
+        focal_weight = (1.0 - pt).pow(self.gamma)
+        focal_weight = focal_weight / (focal_weight.sum() + self.eps)
+        focal_weight = focal_weight * targets.numel()  # scaling
+
+        loss = -focal_weight * log_pt  # [N]
+
+        if self.debug_print:
+            print(f'[DEBUG] Loss stats: min={loss.min().item():.6f}, max={loss.max().item():.6f}, mean={loss.mean().item():.6f}')
+
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        else:
+            return loss
+
+
+# class NormalizedFocalLossSoftmax(nn.Module):
+#     def __init__(self, gamma=2.0, ignore_index=-1, reduction='mean', eps=1e-12):
+#         """
+#         Normalized Focal Loss (Softmax-based), as used in Click2Trimap.
+
+#         Args:
+#             gamma: focusing parameter
+#             ignore_index: label to ignore
+#             reduction: 'mean' | 'sum' | 'none'
+#             eps: small epsilon to avoid division by zero
+#         """
+#         super().__init__()
+#         self.gamma = gamma
+#         self.ignore_index = ignore_index
+#         self.reduction = reduction
+#         self.eps = eps
+
+#     def forward(self, inputs, targets):
+#         """
+#         Args:
+#             inputs: [B, C, H, W] raw logits
+#             targets: [B, H, W] with values in 0 .. C-1
+#         """
+#         B, C, H, W = inputs.shape
+#         inputs = inputs.permute(0, 2, 3, 1).reshape(-1, C)  # [(B*H*W), C]
+#         targets = targets.view(-1)                         # [(B*H*W)]
+
+#         valid_mask = targets != self.ignore_index
+#         inputs = inputs[valid_mask]
+#         targets = targets[valid_mask]
+
+#         if targets.numel() == 0:
+#             return torch.tensor(0.0, dtype=inputs.dtype, device=inputs.device, requires_grad=True)
+
+#         log_probs = F.log_softmax(inputs, dim=-1)                    # [N, C]
+#         probs = torch.exp(log_probs)                                # [N, C]
+#         pt = probs[torch.arange(len(targets)), targets]             # [N]
+#         log_pt = log_probs[torch.arange(len(targets)), targets]     # [N]
+
+#         # Focal weight
+#         focal_weight = (1.0 - pt).pow(self.gamma)                   # [N]
+
+#         # Normalization as in Click2Trimap (sum to 1)
+#         focal_weight = focal_weight / (focal_weight.sum() + self.eps)
+
+#         # Loss
+#         loss = -focal_weight * log_pt  # [N]
+
+#         # Reduction
+#         if self.reduction == 'mean':
+#             return loss.mean()
+#         elif self.reduction == 'sum':
+#             return loss.sum()
+#         else:
+#             return loss
 
 class NormalizedFocalLossSigmoid(nn.Module):
     def __init__(self, axis=-1, alpha=0.25, gamma=2, max_mult=-1, eps=1e-12,

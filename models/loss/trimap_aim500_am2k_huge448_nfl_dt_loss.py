@@ -9,7 +9,10 @@ from isegm.data.datasets.p3m10k import P3M10KTrimapDataset
 from isegm.data.datasets.am2k import AM2KTrimapDataset
 from torch.utils.data import ConcatDataset
 
-MODEL_NAME = 'aim500_trimap_vit_huge448'
+from isegm.model.trimap_combineloss import CombinedLoss
+from isegm.model.losses import NormalizedFocalLossSoftmax, UnknownRegionDTLoss
+
+MODEL_NAME = 'aim500_am2k_trimap_vit_huge448_nfl_dtloss'
 
 
 def main(cfg):
@@ -78,9 +81,12 @@ def train(model, cfg, model_cfg):
     crop_size = model_cfg.crop_size
 
     loss_cfg = edict()
-    #loss_cfg.instance_loss = NormalizedFocalLossSigmoid(alpha=0.5, gamma=2)
-    loss_cfg.instance_loss = nn.CrossEntropyLoss()
+    loss_cfg.instance_loss = CombinedLoss(focal_weight=1.0, dt_weight=0.1)
     loss_cfg.instance_loss_weight = 1.0
+    # loss_cfg.instance_loss = NormalizedFocalLossSoftmax(gamma=2.0,debug_print=True)    
+    # loss_cfg.instance_loss_weight = 1.0
+    # loss_cfg.instance_loss = UnknownRegionDTLoss(debug_print=True)
+    # loss_cfg.instance_loss_weight = 1.0
 
     # train_augmentator = Compose([
     #     #UniformRandomResize(scale_range=(0.75, 1.40)),
@@ -118,9 +124,9 @@ def train(model, cfg, model_cfg):
         #kjk20250419 input size change
     ], p=1.0)
 
-    points_sampler = MultiPointSampler(model_cfg.num_max_points, prob_gamma=0.80,
-                                       merge_objects_prob=0.15,
-                                       max_num_merged_objects=2)
+    # points_sampler = MultiPointSampler(model_cfg.num_max_points, prob_gamma=0.80,
+    #                                    merge_objects_prob=0.15,
+    #                                    max_num_merged_objects=2)
 
     trainset1 = AIM500TrimapDataset(
         dataset_path=cfg.AIM500_PATH,     # config.yml 에 추가
@@ -128,18 +134,18 @@ def train(model, cfg, model_cfg):
         augmentator=train_augmentator,
         epoch_len=-1
     )
-    # trainset1 = AM2KTrimapDataset(
-    #     dataset_path=cfg.AM2K_PATH,     # config.yml 에 추가
-    #     split='train',
-    #     augmentator=train_augmentator,
-    #     epoch_len=-1
-    # )
-    trainset2 = P3M10KTrimapDataset(
-        dataset_path=cfg.P3M10K_TRAIN_PATH,     # config.yml 에 추가
+    trainset2 = AM2KTrimapDataset(
+        dataset_path=cfg.AM2K_PATH,     # config.yml 에 추가
         split='train',
         augmentator=train_augmentator,
         epoch_len=-1
     )
+    # trainset2 = P3M10KTrimapDataset(
+    #     dataset_path=cfg.P3M10K_TRAIN_PATH,     # config.yml 에 추가
+    #     split='train',
+    #     augmentator=train_augmentator,
+    #     epoch_len=-1
+    # )
     
     trainset = ConcatDataset([trainset1, trainset2])
 
@@ -176,7 +182,7 @@ def train(model, cfg, model_cfg):
                         layerwise_decay=cfg.layerwise_decay,
                         lr_scheduler=lr_scheduler,
                         checkpoint_interval=[(0, 20), (50, 1)],
-                        image_dump_interval=300, # interval to save png
+                        image_dump_interval=100, # interval to save png
                         metrics=[AdaptiveIoU()],
                         max_interactive_points=model_cfg.num_max_points,
                         max_num_next_clicks=3)

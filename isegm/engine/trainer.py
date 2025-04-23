@@ -168,11 +168,16 @@ class ISTrainer(object):
             train_loss += losses_logging['overall'].item()
 
             if self.is_master:
+                # for loss_name, loss_value in losses_logging.items():
+                #     self.sw.add_scalar(tag=f'{log_prefix}Losses/{loss_name}',
+                #                        value=loss_value.item(),
+                #                        global_step=global_step)
                 for loss_name, loss_value in losses_logging.items():
+                    if isinstance(loss_value, torch.Tensor):
+                        loss_value = loss_value.item()
                     self.sw.add_scalar(tag=f'{log_prefix}Losses/{loss_name}',
-                                       value=loss_value.item(),
-                                       global_step=global_step)
-
+                                    value=loss_value,
+                                    global_step=global_step)
                 for k, v in self.loss_cfg.items():
                     if '_loss' in k and hasattr(v, 'log_states') and self.loss_cfg.get(k + '_weight', 0.0) > 0:
                         v.log_states(self.sw, f'{log_prefix}Losses/{k}', global_step)
@@ -184,8 +189,16 @@ class ISTrainer(object):
                 self.sw.add_scalar(tag=f'{log_prefix}States/learning_rate',
                                    value=self.lr if not hasattr(self, 'lr_scheduler') else self.lr_scheduler.get_lr()[-1],
                                    global_step=global_step)
+                loss_msg = f'Epoch {epoch}, training loss {train_loss/(i+1):.6f}'
 
-                tbar.set_description(f'Epoch {epoch}, training loss {train_loss/(i+1):.4f}')
+                if 'instance_loss/focal_loss' in losses_logging:
+                    loss_msg += f", focal {losses_logging['instance_loss/focal_loss']:.6f}"
+                if 'instance_loss/dt_loss' in losses_logging:
+                    loss_msg += f", dt {losses_logging['instance_loss/dt_loss']:.6f}"
+
+                tbar.set_description(loss_msg)
+                # tbar.set_description(f'Epoch {epoch}, training loss {train_loss/(i+1):.4f}')
+                
                 for metric in self.train_metrics:
                     metric.log_states(self.sw, f'{log_prefix}Metrics/{metric.name}', global_step)
 
@@ -303,15 +316,49 @@ class ISTrainer(object):
     def add_loss(self, loss_name, total_loss, losses_logging, validation, lambda_loss_inputs):
         loss_cfg = self.loss_cfg if not validation else self.val_loss_cfg
         loss_weight = loss_cfg.get(loss_name + '_weight', 0.0)
+
         if loss_weight > 0.0:
             loss_criterion = loss_cfg.get(loss_name)
-            loss = loss_criterion(*lambda_loss_inputs())
-            loss = torch.mean(loss)
-            losses_logging[loss_name] = loss
+            loss_result = loss_criterion(*lambda_loss_inputs())
+
+            # CombinedLoss의 반환 형식이 (loss, dict) 인 경우
+            if isinstance(loss_result, tuple):
+                loss, detail = loss_result
+
+                # 서브 컴포넌트들 로그 저장
+                for sub_name, sub_val in detail.items():
+                    if isinstance(sub_val, torch.Tensor):
+                        sub_val = sub_val.item()
+                    losses_logging[f'{loss_name}/{sub_name}'] = sub_val
+
+                # weighted 포함 이전 전체 loss 로그
+                losses_logging[loss_name] = loss.item()
+            else:
+                loss = loss_result
+                if isinstance(loss, torch.Tensor):
+                    losses_logging[loss_name] = loss.item()
+                else:
+                    losses_logging[loss_name] = float(loss)
+
+            # 가중치 곱해서 전체 loss에 누적
             loss = loss_weight * loss
             total_loss = total_loss + loss
 
         return total_loss
+
+
+    # def add_loss(self, loss_name, total_loss, losses_logging, validation, lambda_loss_inputs):
+    #     loss_cfg = self.loss_cfg if not validation else self.val_loss_cfg
+    #     loss_weight = loss_cfg.get(loss_name + '_weight', 0.0)
+    #     if loss_weight > 0.0:
+    #         loss_criterion = loss_cfg.get(loss_name)
+    #         loss = loss_criterion(*lambda_loss_inputs())
+    #         loss = torch.mean(loss)
+    #         losses_logging[loss_name] = loss
+    #         loss = loss_weight * loss
+    #         total_loss = total_loss + loss
+
+    #     return total_loss
 
     # def save_visualization(self, splitted_batch_data, outputs, global_step, prefix):
     #     #kjk
