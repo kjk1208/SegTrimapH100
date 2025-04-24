@@ -7,7 +7,7 @@ from isegm.data.datasets import *
 from isegm.model.losses import *
 from isegm.data.transforms import *
 from isegm.engine.trainer import ISTrainer
-from isegm.model.metrics import AdaptiveIoU
+from isegm.model.metrics import AdaptiveIoU, PerClassIoU, MultiClassIoU, UnknownIoU
 from isegm.data.points_sampler import MultiPointSampler
 from isegm.utils.log import logger
 from isegm.model import initializer

@@ -38,9 +38,9 @@ class AM2KTrimapDataset(ISDataset):
             raise FileNotFoundError(f"Trimap not found: {self.trimap_dir / f'{sample_id}.png'}")
 
         trimap_mapped = np.zeros_like(trimap, dtype=np.int32)
-        trimap_mapped[trimap == 0] = 0
-        trimap_mapped[trimap == 128] = 1
-        trimap_mapped[trimap == 255] = 2
+        trimap_mapped[trimap <= 15] = 0        
+        trimap_mapped[(trimap >= 15) & (trimap <= 229)] = 1
+        trimap_mapped[trimap >= 230] = 2
 
         sample = DSample(
             image=image,

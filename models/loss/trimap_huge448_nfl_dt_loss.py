@@ -189,9 +189,9 @@ def train(model, cfg, model_cfg):
                         optimizer_params=optimizer_params,
                         layerwise_decay=cfg.layerwise_decay,
                         lr_scheduler=lr_scheduler,
-                        checkpoint_interval=[(0, 20), (50, 1)],
+                        checkpoint_interval=[(0, 10), (50, 1)],
                         image_dump_interval=300, # interval to save png
-                        metrics=[AdaptiveIoU()],
+                        metrics=[PerClassIoU(), MultiClassIoU(), UnknownIoU()],
                         max_interactive_points=model_cfg.num_max_points,
                         max_num_next_clicks=3)
     trainer.run(num_epochs=55, validation=False)

@@ -30,9 +30,9 @@ class AIM500TrimapDataset(ISDataset):
         # 3. Load GT trimap
         trimap = cv2.imread(str(self.trimap_dir / f'{sample_id}.png'), cv2.IMREAD_GRAYSCALE)
         trimap_mapped = np.zeros_like(trimap, dtype=np.int32)
-        trimap_mapped[trimap == 0] = 0
-        trimap_mapped[trimap == 128] = 1
-        trimap_mapped[trimap == 255] = 2
+        trimap_mapped[trimap <= 15] = 0        
+        trimap_mapped[(trimap >= 15) & (trimap <= 229)] = 1
+        trimap_mapped[trimap >= 230] = 2
 
         sample = DSample(
             image=image,
