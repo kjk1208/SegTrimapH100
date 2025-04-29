@@ -18,11 +18,11 @@
 -	**Patch Embedding 추가**: Mask를 Patch Embedding하여 이미지 feature에 추가.
 -	**출력 변경**: 기존 binary segmentation → 3-class Trimap 예측 (foreground, unknown, background).
 -	**Loss 함수 변경**
-  -	Normalized Focal Loss for Trimap prediction
-  -	Unknown Region Distance Transform Loss
-  -	CombinedLoss로 통합
+   -	Normalized Focal Loss for Trimap prediction
+   -	Unknown Region Distance Transform Loss
+   -	CombinedLoss로 통합
 -	**Augmentation**
-	-	LongestMaxSize, PadIfNeeded, HorizontalFlip, RandomBrightnessContrast, RGBShift 적용
+	 -	LongestMaxSize, PadIfNeeded, HorizontalFlip, RandomBrightnessContrast, RGBShift 적용
 
 ## Environment
 -	Python 3.8+
@@ -38,11 +38,11 @@ pip3 install -r requirements.txt
 ## Download
 -	Train시에는 MAE pretrained weight를 다운로드 해야함 (Inference시에는 불 필요) : ViT-Huge Pretrain
 -	Inference & evaluation시에는 기존 학습된 weight를 다운로드해야함 : share/Trimap_pretrained_weight - Google Drive (무버스)
-  -	./output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/
-  -	위 경로에 다운로드 (필수 아님)
+   -	./output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/
+   -	위 경로에 다운로드 (필수 아님)
 -	데이터셋은 개별적으로 다운로드 필요 (Composition-1k, P3M-10k, AIM-500, AM-2k)
-  -	Dataset 경로 : ./datasets/Seg2TrimapDataset
-  -	위 경로에 @덕배가 정리한 데이터셋을 넣으면 됨
+   -	Dataset 경로 : ./datasets/Seg2TrimapDataset
+   -	위 경로에 @덕배가 정리한 데이터셋을 넣으면 됨
 -	추가로, MAE 사전 학습 가중치를 다운로드 받아야 합니다 (ViT-Huge 사용)
 
 - MAE github : [MAE](https://github.com/facebookresearch/mae) 
