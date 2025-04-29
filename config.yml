@@ -21,6 +21,7 @@ COCO_PATH: "./datasets/lvis_coco/train2017"
 LVIS_v1_PATH: "./datasets/lvis_coco/train2017"
 OPENIMAGES_PATH: "./datasets/OpenImages"
 PASCALVOC_PATH: "/playpen-raid2/qinliu/data/PascalVOC"
+
 ADE20K_PATH: "./datasets/ADE20K"
 AIM500_PATH: "./datasets/3.AIM-500"
 AM2K_PATH: "./datasets/Seg2TrimapDataset/AM-2k"

@@ -1,5 +1,6 @@
 import os
 import torch
+import argparse
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
@@ -9,12 +10,12 @@ import datetime
 from isegm.data.datasets.aim500 import AIM500TrimapDataset
 from isegm.model.is_trimap_plaintvit_model import TrimapPlainVitModel
 from isegm.model.modeling.pos_embed import interpolate_pos_embed_inference
-from albumentations import Resize, Compose, LongestMaxSize, PadIfNeeded
+from albumentations import Compose, LongestMaxSize, PadIfNeeded
 
 
-def build_model():
+def build_model(infer_img_size):
     backbone_params = dict(
-        img_size=(448, 448),
+        img_size=infer_img_size,
         patch_size=(14, 14),
         in_chans=3,
         embed_dim=1280,
@@ -33,7 +34,7 @@ def build_model():
         align_corners=False,
         upsample='x4',
         channels={'x1': 256, 'x2': 128, 'x4': 64}['x4'],
-    )    
+    )
 
     model = TrimapPlainVitModel(
         backbone_params=backbone_params,
@@ -57,8 +58,8 @@ def save_trimap(trimap_tensor, save_path):
 
 def save_seg_mask(seg_tensor, save_path):
     seg = seg_tensor.squeeze().cpu().numpy()
-    seg = (seg > 0.5).astype(np.uint8) * 255
-    cv2.imwrite(save_path, seg)
+    seg = (seg > 1e-5).astype(np.uint8) * 255 
+    cv2.imwrite(save_path, seg)   
 
 
 def save_input_image(image_tensor, save_path):
@@ -77,52 +78,57 @@ def save_gt_trimap(gt_tensor, save_path):
     cv2.imwrite(save_path, trimap_vis)
 
 
-def main():    
-    #ckpt_path = './output/iter_mask/aim500_trimap_vit_huge448/005/checkpoints/last_checkpoint.pth'
-    ckpt_path = './output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/020.pth'
-    data_root = './datasets/3.AIM-500'
+def main(args):
+    infer_img_size = (args.infer_img_size, args.infer_img_size)
     now = datetime.datetime.now()
     timestamp = now.strftime('%Y%m%d_%H%M%S')
-    save_dir = os.path.join('./inference', timestamp)
+    save_dir = os.path.join(args.save_dir, timestamp)    
     os.makedirs(save_dir, exist_ok=True)
 
-    # 모델 로딩
-    model = build_model()
-    ckpt = torch.load(ckpt_path, map_location='cpu')
+    model = build_model(infer_img_size)
+    ckpt = torch.load(args.ckpt_path, map_location='cpu')
     model.load_state_dict(ckpt['state_dict'], strict=False)
-    interpolate_pos_embed_inference(model.backbone, infer_img_size=(448, 448), device='cpu')
+    interpolate_pos_embed_inference(model.backbone, infer_img_size=infer_img_size, device='cpu')
     model.eval()
 
     test_augmentator = Compose([
-        LongestMaxSize(max_size=448),
-        PadIfNeeded(min_height=448, min_width=448, border_mode=0)
+        LongestMaxSize(max_size=args.infer_img_size),
+        PadIfNeeded(min_height=args.infer_img_size, min_width=args.infer_img_size, border_mode=0)
     ])
 
     testset = AIM500TrimapDataset(
-        dataset_path=data_root,
+        dataset_path=args.data_root,
         split='val',
         augmentator=test_augmentator,
         epoch_len=-1
     )
-    testloader = DataLoader(testset, batch_size=1, shuffle=False)
+    testloader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
     with torch.no_grad():
         for i, batch in enumerate(tqdm(testloader)):
-            image = batch['images']         # [1, 3, H, W]
-            seg_mask = batch['seg_mask']    # [1, 1, H, W]
-            gt_trimap = batch['instances']  # [1, H, W]
-            sample_id = testset.dataset_samples[i]
-
+            image = batch['images']          # [B, 3, H, W]
+            seg_mask = batch['seg_mask']     # [B, 1, H, W]
+            gt_trimap = batch['instances']   # [B, H, W]
             output = model(image, seg_mask)
-            pred = output['instances'][0]  # [3, H, W]
-            
-            # pred = torch.nn.functional.interpolate(pred.unsqueeze(0), size=(448, 448), mode='bilinear', align_corners=False)[0]
+            pred = output['instances']      # [B, 3, H, W]
 
-            save_trimap(pred, os.path.join(save_dir, f'{sample_id}_pred_trimap.png'))
-            save_gt_trimap(gt_trimap[0], os.path.join(save_dir, f'{sample_id}_gt_trimap.png'))
-            save_seg_mask(seg_mask[0], os.path.join(save_dir, f'{sample_id}_seg_mask.png'))
-            save_input_image(image[0], os.path.join(save_dir, f'{sample_id}_image.png'))
+            for j in range(image.size(0)):   # loop over batch
+                sample_id = testset.dataset_samples[i * args.batch_size + j]
+                save_trimap(pred[j], os.path.join(save_dir, f'{sample_id}_pred_trimap.png'))
+                save_gt_trimap(gt_trimap[j], os.path.join(save_dir, f'{sample_id}_gt_trimap.png'))
+                save_seg_mask(seg_mask[j], os.path.join(save_dir, f'{sample_id}_seg_mask.png'))
+                save_input_image(image[j], os.path.join(save_dir, f'{sample_id}_image.png'))
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ckpt_path', type=str, default='./output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/020.pth', help='Path to the model checkpoint')
+    parser.add_argument('--data_root', type=str, default='./datasets/3.AIM-500', help='Path to dataset root folder')
+    parser.add_argument('--save_dir', type=str, default='./inference', help='Path to save predictions')
+    parser.add_argument('--infer_img_size', type=int, default=448, help='Input size for inference')
+    parser.add_argument('--batch_size', type=int, default=1, help='Batch size for inference')
+    args = parser.parse_args()
+
+    main(args)
+    
+    

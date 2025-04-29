@@ -2,6 +2,7 @@
 /weight/
 /inference/
 /datasets/
+/aug_test/
 
 # Models
 *.pth
