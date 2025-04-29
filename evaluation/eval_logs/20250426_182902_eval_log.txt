@@ -1,0 +1,22 @@
+
+Eval_weight_path: /home/kjk/matting/SegTrimap/output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/010.pth
+Dataset: Composition-1K
+Samples: 1000
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9109	0.6499	0.6143	0.7253
+
+Dataset: P3M-500-P
+Samples: 500
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9851	0.7693	0.9257	0.8934
+
+Dataset: AIM-500
+Samples: 500
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9671	0.7724	0.7717	0.8387
+
+Dataset: AM-200
+Samples: 200
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9884	0.8305	0.8962	0.9050
+

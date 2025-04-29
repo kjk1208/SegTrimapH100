@@ -1,93 +1,79 @@
-# [SimpleClick: Interactive Image Segmentation with Simple Vision Transformers](https://openaccess.thecvf.com/content/ICCV2023/html/Liu_SimpleClick_Interactive_Image_Segmentation_with_Simple_Vision_Transformers_ICCV_2023_paper.html)
+# [Transformer-based Trimap Segmentation]
 
-**University of North Carolina at Chapel Hill**
+**Division of Automotive Technology, DGIST**
 
-[Qin Liu](https://sites.google.com/cs.unc.edu/qinliu/home), [Zhenlin Xu](https://wildphoton.github.io/), [Gedas Bertasius](https://www.gedasbertasius.com/), [Marc Niethammer](https://biag.cs.unc.edu/)
-
-ICCV 2023
+2025
 
 <p align="center">
-    <a href="https://paperswithcode.com/sota/interactive-segmentation-on-sbd?p=simpleclick-interactive-image-segmentation">
-        <img src="https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/simpleclick-interactive-image-segmentation/interactive-segmentation-on-sbd"/>
-    </a>
+  <img src="./assets/network.png" alt="drawing", width="650"/>
 </p>
 
-<p align="center">
-  <img src="./assets/simpleclick_framework.png" alt="drawing", width="650"/>
-</p>
+## Overview
 
+본 프로젝트는 Trimap 분할을 위한 Transformer 기반 모델을 개발하고, 기존의 인터랙티브 세그멘테이션 방식 대신 Segmentation Mask를 보조 입력으로 활용하는 새로운 구조를 제안합니다.
+원래의 SimpleClick 모델을 기반으로 하여, 클릭 기반 입력이 아닌 segmentation mask를 patch embedding하여 transformer backbone에 통합하는 방식으로 수정되었습니다. 또한 binary segmentation이 아닌 **3-class Trimap (Foreground, Unknown, Background)**을 예측하도록 모델을 확장하였습니다.
+
+## Key Modifications from SimpleClick
+	•	**입력 변경**: 사용자의 클릭 대신, Segmentation Mask를 입력으로 사용.
+	•	**Patch Embedding 추가**: Mask를 Patch Embedding하여 이미지 feature에 추가.
+	•	**출력 변경**: 기존 binary segmentation → 3-class Trimap 예측 (foreground, unknown, background).
+	•	**Loss 함수 변경**
+    •	Normalized Focal Loss for Trimap prediction
+    •	Unknown Region Distance Transform Loss
+    •	CombinedLoss로 통합
+	•	**Augmentation**
+	  •	LongestMaxSize, PadIfNeeded, HorizontalFlip, RandomBrightnessContrast, RGBShift 적용
 
 ## Environment
-Training and evaluation environment: Python3.8.8, PyTorch 1.11.0, Ubuntu 20.4, CUDA 11.0. Run the following command to install required packages.
+	•	Python 3.8+
+	•	PyTorch 2.4.1+cu121
+  •	torchvision 0.19.1+cu121
+	•	Ubuntu 20.04
+	•	CUDA 12.1
+
 ```
 pip3 install -r requirements.txt
 ```
-You can build a container with the configured environment using our [Dockerfiles](https://github.com/uncbiag/SimpleClick/tree/v1.0/docker). 
-Our Dockerfiles only support CUDA 11.0/11.4/11.6. If you use different CUDA drivers, you need to modify the base image in the Dockerfile (This is annoying that you need a matched image in Dockerfile for your CUDA driver, otherwise the gpu doesn't work in the container. Any better solutions?).
-You also need to configue the paths to the datasets in [config.yml](https://github.com/uncbiag/SimpleClick/blob/v1.0/config.yml) before training or testing.
 
-## Demo
-<p align="center">
-  <img src="./assets/demo_sheep.gif" alt="drawing", width="500"/>
-</p>
+## Download
+	•	Train시에는 MAE pretrained weight를 다운로드 해야함 (Inference시에는 불 필요) : ViT-Huge Pretrain
+  •	Inference & evaluation시에는 기존 학습된 weight를 다운로드해야함 : share/Trimap_pretrained_weight - Google Drive (무버스)
+    •	./output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/
+    •	위 경로에 다운로드 (필수 아님)
+	•	데이터셋은 개별적으로 다운로드 필요 (Composition-1k, P3M-10k, AIM-500, AM-2k)
+    •	Dataset 경로 : ./datasets/Seg2TrimapDataset
+    •	위 경로에 @덕배가 정리한 데이터셋을 넣으면 됨
+  •	추가로, MAE 사전 학습 가중치를 다운로드 받아야 합니다 (ViT-Huge 사용)
 
-An example script to run the demo. 
+- MAE github : [MAE](https://github.com/facebookresearch/mae) 
+- Pretrained weights (click to download: [ViT-Base](https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_vit_base.pth), [ViT-Large](https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_vit_large.pth), [ViT-Huge](https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_vit_huge.pth))
+
+
+## Inference
+
+모델 추론을 실행하려면 inference.py 파일을 사용하세요.
+	•	inference.py 파일은 학습된 모델 체크포인트를 로드하고, 지정된 입력 이미지에 대해 Trimap 예측을 수행합니다.
+	•	출력 결과는 지정된 디렉토리에 자동으로 저장됩니다.
+
 ```
-python3 demo.py --checkpoint=./weights/simpleclick_models/cocolvis_vit_huge.pth --gpu 0
+python inference.py
 ```
-Some test images can be found [here](https://github.com/uncbiag/SimpleClick/tree/v1.0/assets/test_imgs).
 
 ## Evaluation
-Before evaluation, please download the datasets and models, and then configure the path in [config.yml](https://github.com/uncbiag/SimpleClick/blob/v1.0/config.yml).
 
-Use the following code to evaluate the huge model.
+학습된 모델을 사용하여 Composition-1K, P3M-500-P, AIM-500, AM-200 데이터셋에 대해 평가할 수 있습니다.
 ```
-python scripts/evaluate_model.py NoBRS \
---gpu=0 \
---checkpoint=./weights/simpleclick_models/cocolvis_vit_huge.pth \
---eval-mode=cvpr \
---datasets=GrabCut,Berkeley,DAVIS,PascalVOC,SBD,COCO_MVal,ssTEM,BraTS,OAIZIB
+python evaluation/eval.py
 ```
 
 ## Training
-Before training, please download the [MAE](https://github.com/facebookresearch/mae) pretrained weights (click to download: [ViT-Base](https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_vit_base.pth), [ViT-Large](https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_vit_large.pth), [ViT-Huge](https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_vit_huge.pth)) and configure the dowloaded path in [config.yml](https://github.com/uncbiag/SimpleClick/blob/main/config.yml).
 
-Use the following code to train a huge model on C+L: 
+	•	학습 전 MAE 사전학습 가중치를 다운로드하고 경로를 설정해야 합니다.
+	•	학습을 실행하려면 run_train.sh 파일을 사용하세요.
 ```
-python train.py models/iter_mask/plainvit_huge448_cocolvis_itermask.py \
---batch-size=32 \
---ngpus=4
+sh run_train.sh
 ```
-
-## Download 
-SimpleClick models: [Google Drive](https://drive.google.com/drive/folders/1qpK0gtAPkVMF7VC42UA9XF4xMWr5KJmL?usp=sharing)
-
-BraTS dataset (369 cases): [Google Drive](https://drive.google.com/drive/folders/1B6y1nNBnWU09EhxvjaTdp1XGjc1T6wUk?usp=sharing) 
-
-OAI-ZIB dataset (150 cases): [Google Drive](https://drive.google.com/drive/folders/1B6y1nNBnWU09EhxvjaTdp1XGjc1T6wUk?usp=sharing)
-
-Other datasets: [RITM Github](https://github.com/saic-vul/ritm_interactive_segmentation)
-
-## Notes
-[03/11/2023] Add an xTiny model.
-
-[10/25/2022] Add docker files.
-
-[10/02/2022] Release the main models. This repository is still under active development.
-
-## License
-The code is released under the MIT License. It is a short, permissive software license. Basically, you can do whatever you want as long as you include the original copyright and license notice in any copy of the software/source. 
-
-## Citation
-```bibtex
-@InProceedings{Liu_2023_ICCV,
-    author    = {Liu, Qin and Xu, Zhenlin and Bertasius, Gedas and Niethammer, Marc},
-    title     = {SimpleClick: Interactive Image Segmentation with Simple Vision Transformers},
-    booktitle = {Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
-    month     = {October},
-    year      = {2023},
-    pages     = {22290-22300}
-}
+	•	직접 python 코드를 실행하려면 아래 코드를 실행하세요. 
 ```
-## Acknowledgement
-Our project is developed based on [RITM](https://github.com/saic-vul/ritm_interactive_segmentation). Thanks for the nice demo GUI :)
+python train.py models/loss/trimap_huge448_nfl_dt_loss.py --batch-size=32 --ngpus=4 --upsample='x4'
+```

@@ -106,14 +106,12 @@ def train(model, cfg, model_cfg):
     
     train_augmentator = Compose([
         #kjk20250419 input size change
-        #LongestMaxSize(max_size=448),
         LongestMaxSize(max_size=cfg.INPUT_SIZE),
-        #PadIfNeeded(min_height=448, min_width=448, border_mode=0),  # zero-padding
-        PadIfNeeded(min_height=cfg.INPUT_SIZE, min_width=cfg.INPUT_SIZE, border_mode=0),  # zero-padding
-        #kjk20250419 input size change
         HorizontalFlip(),
         RandomBrightnessContrast(brightness_limit=(-0.25, 0.25), contrast_limit=(-0.15, 0.4), p=0.75),
-        RGBShift(r_shift_limit=10, g_shift_limit=10, b_shift_limit=10, p=0.75)
+        RGBShift(r_shift_limit=10, g_shift_limit=10, b_shift_limit=10, p=0.75),
+        PadIfNeeded(min_height=cfg.INPUT_SIZE, min_width=cfg.INPUT_SIZE, border_mode=0),  # zero-padding
+        #kjk20250419 input size change        
     ], p=1.0)
 
     val_augmentator = Compose([

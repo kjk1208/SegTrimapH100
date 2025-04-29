@@ -204,9 +204,22 @@ class ISTrainer(object):
 
         if self.is_master:
             for metric in self.train_metrics:
-                self.sw.add_scalar(tag=f'{log_prefix}Metrics/{metric.name}',
-                                   value=metric.get_epoch_value(),
-                                   global_step=epoch, disable_avg=True)
+                metric_value = metric.get_epoch_value()
+                if isinstance(metric_value, dict):
+                    for k, v in metric_value.items():
+                        self.sw.add_scalar(
+                            tag=f'{log_prefix}Metrics/{metric.name}/{k}',
+                            value=float(v),
+                            global_step=epoch,
+                            disable_avg=True
+                        )
+                else:
+                    self.sw.add_scalar(
+                        tag=f'{log_prefix}Metrics/{metric.name}',
+                        value=float(metric_value),
+                        global_step=epoch,
+                        disable_avg=True
+                    )
 
             save_checkpoint(self.net, self.cfg.CHECKPOINTS_PATH, prefix=self.task_prefix,
                             epoch=None, multi_gpu=self.cfg.multi_gpu)

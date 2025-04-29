@@ -9,7 +9,7 @@ import datetime
 from isegm.data.datasets.aim500 import AIM500TrimapDataset
 from isegm.model.is_trimap_plaintvit_model import TrimapPlainVitModel
 from isegm.model.modeling.pos_embed import interpolate_pos_embed_inference
-from albumentations import Resize, Compose
+from albumentations import Resize, Compose, LongestMaxSize, PadIfNeeded
 
 
 def build_model():
@@ -77,8 +77,9 @@ def save_gt_trimap(gt_tensor, save_path):
     cv2.imwrite(save_path, trimap_vis)
 
 
-def main():
-    ckpt_path = './output/iter_mask/aim500_trimap_vit_huge448/005/checkpoints/last_checkpoint.pth'
+def main():    
+    #ckpt_path = './output/iter_mask/aim500_trimap_vit_huge448/005/checkpoints/last_checkpoint.pth'
+    ckpt_path = './output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/020.pth'
     data_root = './datasets/3.AIM-500'
     now = datetime.datetime.now()
     timestamp = now.strftime('%Y%m%d_%H%M%S')
@@ -93,7 +94,8 @@ def main():
     model.eval()
 
     test_augmentator = Compose([
-        Resize(448, 448)
+        LongestMaxSize(max_size=448),
+        PadIfNeeded(min_height=448, min_width=448, border_mode=0)
     ])
 
     testset = AIM500TrimapDataset(
