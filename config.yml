@@ -11,6 +11,7 @@ ssTEM_PATH: "/playpen-raid2/qinliu/data/ssTEM"
 OAIZIB_PATH: "/playpen-raid2/qinliu/data/OAI-ZIB/iseg_slices"
 OAI_PATH: "/playpen-raid2/qinliu/data/OAI"
 HARD_PATH: "/playpen-raid2/qinliu/data/HARD"
+
 P3M10K_TEST_PATH: "./datasets/2.P3M-10k/P3M-10k/validation/P3M-500-NP"
 
 # Train datasets
@@ -23,10 +24,10 @@ OPENIMAGES_PATH: "./datasets/OpenImages"
 PASCALVOC_PATH: "/playpen-raid2/qinliu/data/PascalVOC"
 
 ADE20K_PATH: "./datasets/ADE20K"
-AIM500_PATH: "./datasets/3.AIM-500"
-AM2K_PATH: "./datasets/Seg2TrimapDataset/AM-2k"
-P3M10K_TRAIN_PATH: "./datasets/Seg2TrimapDataset/P3M-10k"
-COMPOSITION431K_PATH : "./datasets/Seg2TrimapDataset/Composition-431k-png"
+AIM500_PATH: "./datasets/AIM-500"
+AM2K_PATH: "./datasets/AM-2k"
+P3M10K_TRAIN_PATH: "./datasets/P3M-10k"
+COMPOSITION431K_PATH : "./datasets/Composition-431k-png"
 
 #INPUT_SIZE : 672
 INPUT_SIZE : 448

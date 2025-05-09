@@ -3,6 +3,7 @@
 /inference/
 /datasets/
 /aug_test/
+config.yml
 
 # Models
 *.pth

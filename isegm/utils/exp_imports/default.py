@@ -19,3 +19,4 @@ from isegm.model.is_hrformer_model import HRFormerModel
 from isegm.model.is_swinformer_model import SwinformerModel
 from isegm.model.is_plainvit_model import PlainVitModel
 from isegm.model.is_trimap_plaintvit_model import TrimapPlainVitModel
+from isegm.model.is_trimap_plaintvit_model_noposembed import NoPosEmbedTrimapPlainVitModel

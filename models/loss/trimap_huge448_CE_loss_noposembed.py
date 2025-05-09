@@ -56,7 +56,7 @@ def init_model(cfg):
         channels={'x1': 256, 'x2': 128, 'x4': 64}[cfg.upsample],
     )
 
-    model = TrimapPlainVitModel(
+    model = NoPosEmbedTrimapPlainVitModel(
         use_disks=True,
         norm_radius=5,
         with_prev_mask=True,

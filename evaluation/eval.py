@@ -104,10 +104,10 @@ def parse_args():
     parser.add_argument('--device', default='cpu', type=str, help='Device to use (cpu or cuda)')
     parser.add_argument('--batch_size', default=4, type=int, help='Evaluation batch size')
     parser.add_argument('--log_dir', default='./evaluation/eval_logs', type=str, help='Directory to save evaluation logs')
-    parser.add_argument('--composition_path', default='./datasets/Seg2TrimapDataset/Composition-1k-testset', type=str, help='Path to composition')
+    parser.add_argument('--composition_path', default='./datasets/Composition-1k-testset', type=str, help='Path to composition')
     parser.add_argument('--p3m500_path', default='./datasets/2.P3M-10k/P3M-10k/validation/P3M-500-NP', type=str, help='Path to p3m500')
-    parser.add_argument('--aim500_path', default='./datasets/Seg2TrimapDataset/AIM-500', type=str, help='Path to aim500')
-    parser.add_argument('--am200_path', default='./datasets/Seg2TrimapDataset/AM-200', type=str, help='Path to am200')
+    parser.add_argument('--aim500_path', default='./datasets/AIM-500', type=str, help='Path to aim500')
+    parser.add_argument('--am200_path', default='./datasets/AM-200', type=str, help='Path to am200')
     return parser.parse_args()
 
 

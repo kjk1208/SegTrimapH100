@@ -190,7 +190,9 @@ class ISTrainer(object):
                                    value=self.lr if not hasattr(self, 'lr_scheduler') else self.lr_scheduler.get_lr()[-1],
                                    global_step=global_step)
                 loss_msg = f'Epoch {epoch}, training loss {train_loss/(i+1):.6f}'
-
+                
+                if 'instance_loss/ce_loss' in losses_logging:
+                    loss_msg += f", ce {losses_logging['instance_loss/ce_loss']:.6f}"
                 if 'instance_loss/focal_loss' in losses_logging:
                     loss_msg += f", focal {losses_logging['instance_loss/focal_loss']:.6f}"
                 if 'instance_loss/dt_loss' in losses_logging:
@@ -302,21 +304,21 @@ class ISTrainer(object):
                     align_corners=False
                 )
 
-            if output['instances_aux'] is not None and output['instances_aux'].shape[-2:] != target_size:
-                output['instances_aux'] = torch.nn.functional.interpolate(
-                    output['instances_aux'],
-                    size=target_size,
-                    mode='bilinear',
-                    align_corners=False
-                )
+            # if output['instances_aux'] is not None and output['instances_aux'].shape[-2:] != target_size:
+            #     output['instances_aux'] = torch.nn.functional.interpolate(
+            #         output['instances_aux'],
+            #         size=target_size,
+            #         mode='bilinear',
+            #         align_corners=False
+            #     )
                 
             loss = 0.0
 
             # loss 계산
             loss = self.add_loss('instance_loss', loss, losses_logging, validation,
                                 lambda: (output['instances'], gt_trimap))
-            loss = self.add_loss('instance_aux_loss', loss, losses_logging, validation,
-                                lambda: (output['instances_aux'], gt_trimap))
+            # loss = self.add_loss('instance_aux_loss', loss, losses_logging, validation,
+            #                     lambda: (output['instances_aux'], gt_trimap))
 
             if self.is_master:
                 with torch.no_grad():

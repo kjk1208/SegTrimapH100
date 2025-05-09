@@ -2,13 +2,30 @@
 
 # export CUDA_VISIBLE_DEVICES=0  
 
-WEIGHT_PATH="/home/kjk/matting/SegTrimap/output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/last_checkpoint.pth"
-COMPOSITION_PATH="./datasets/Seg2TrimapDataset/Composition-1k-testset"
-P3M500_PATH="./datasets/2.P3M-10k/P3M-10k/validation/P3M-500-NP"
-AIM500_PATH="./datasets/Seg2TrimapDataset/AIM-500"
-AM200_PATH="./datasets/Seg2TrimapDataset/AM-200"
+USER_ID=$(whoami)
+
+#User input
+WEIGHT_PATH="/home/work/SegTrimap/output/loss/all_dataset_trimap_vit_huge448_CE_loss/000/checkpoints/last_checkpoint.pth"
+#User input
 
 LOG_DIR="./evaluation/eval_logs"
+
+if [ "$USER_ID" == "kjk" ]; then
+    echo "[INFO] Running on A6000 서버 (사용자: kjk)"
+    COMPOSITION_PATH="./datasets/Seg2TrimapDataset/Composition-1k-testset"
+    P3M500_PATH="./datasets/2.P3M-10k/P3M-10k/validation/P3M-500-NP"
+    AIM500_PATH="./datasets/Seg2TrimapDataset/AIM-500"
+    AM200_PATH="./datasets/Seg2TrimapDataset/AM-200"  
+elif [ "$USER_ID" == "work" ]; then
+    echo "[INFO] Running on H100 서버 (사용자: work)"    
+    COMPOSITION_PATH="./datasets/Composition-1k-testset"
+    P3M500_PATH="./datasets/2.P3M-10k/P3M-10k/validation/P3M-500-NP"
+    AIM500_PATH="./datasets/AIM-500"
+    AM200_PATH="./datasets/AM-200"  
+else
+    echo "[ERROR] Unknown user: $USER_ID"
+    exit 1
+fi
 
 python evaluation/eval.py \
     --weight_path "$WEIGHT_PATH" \
