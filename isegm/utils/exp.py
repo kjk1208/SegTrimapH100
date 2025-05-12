@@ -45,7 +45,7 @@ def init_experiment(args, model_name):
         exp_path = exp_parent_path / exp_name
         synchronize()
         if cfg.local_rank == 0:
-            exp_path.mkdir(parents=True)
+            exp_path.mkdir(parents=True, exist_ok=True)
 
     cfg.EXP_PATH = exp_path
     cfg.CHECKPOINTS_PATH = exp_path / 'checkpoints'

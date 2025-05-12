@@ -3,7 +3,7 @@
 USER_ID=$(whoami)
 
 #User input
-CONFIG="./models/loss/trimap_huge448_CE_loss_noposembed.py"
+CONFIG="./models/ddp/trimap_huge448_CEloss_noposembed_ddp.py"
 #User input
 
 if [ "$USER_ID" == "kjk" ]; then

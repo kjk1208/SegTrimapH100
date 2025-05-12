@@ -105,4 +105,9 @@ class NoPosEmbedTrimapPlainVitModel(ISModel):
         """
         image = self.normalization(image)
         mask_embed = self.patch_embed_mask(seg_mask)
+        
+        #kjk
+        # print('[debug] mask_embed requires_grad:', mask_embed.requires_grad)
+        # assert mask_embed.requires_grad, "mask_embed가 gradient를 안 받습니다!"
+        #kjk
         return self.backbone_forward(image, mask_embed)

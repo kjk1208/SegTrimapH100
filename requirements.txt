@@ -7,7 +7,7 @@ einops==0.8.1
 inplace_abn==1.1.0
 lib==4.0.0
 matplotlib==3.3.4
-mmcv==1.6.2
+mmcv-full==1.6.2
 numpy==1.24.3
 opencv_python_headless==4.11.0.86
 pandas==2.2.3
@@ -19,3 +19,5 @@ timm==0.6.11
 tqdm==4.67.1
 yacs==0.1.8
 tensorboard==2.19.0
+
+-f https://download.openmmlab.com/mmcv/dist/cu118/torch2.1/index.html
