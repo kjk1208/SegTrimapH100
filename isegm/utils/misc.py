@@ -11,7 +11,7 @@ def get_dims_with_exclusion(dim, exclude=None):
 
     return dims
 
-
+#kjk
 def save_checkpoint(net, checkpoints_path, epoch=None, prefix='', verbose=True, multi_gpu=False):
     if epoch is None:
         checkpoint_name = 'last_checkpoint.pth'
@@ -28,10 +28,39 @@ def save_checkpoint(net, checkpoints_path, epoch=None, prefix='', verbose=True, 
     if verbose:
         logger.info(f'Save checkpoint to {str(checkpoint_path)}')
 
-    net = net.module if multi_gpu else net
-    torch.save({'state_dict': net.state_dict(),
-                'config': net._config}, str(checkpoint_path))
+    # DDP인지 명확히 체크해서 .module 접근
+    if isinstance(net, torch.nn.parallel.DistributedDataParallel):
+        model_to_save = net.module
+    else:
+        model_to_save = net
 
+    torch.save({
+        'state_dict': model_to_save.state_dict(),
+        'config': getattr(model_to_save, '_config', None)
+    }, str(checkpoint_path))
+#kjk
+#kjk
+# def save_checkpoint(net, checkpoints_path, epoch=None, prefix='', verbose=True, multi_gpu=False):
+#     if epoch is None:
+#         checkpoint_name = 'last_checkpoint.pth'
+#     else:
+#         checkpoint_name = f'{epoch:03d}.pth'
+
+#     if prefix:
+#         checkpoint_name = f'{prefix}_{checkpoint_name}'
+
+#     if not checkpoints_path.exists():
+#         checkpoints_path.mkdir(parents=True)
+
+#     checkpoint_path = checkpoints_path / checkpoint_name
+#     if verbose:
+#         logger.info(f'Save checkpoint to {str(checkpoint_path)}')
+
+#     net = net.module if multi_gpu else net
+#     torch.save({'state_dict': net.state_dict(),
+#                 'config': net._config}, str(checkpoint_path))
+
+#kjk
 
 def get_bbox_from_mask(mask):
     rows = np.any(mask, axis=1)

@@ -141,5 +141,5 @@ def train(model, cfg, model_cfg):
                         metrics=[PerClassIoU(), MultiClassIoU(), UnknownIoU()],
                         max_interactive_points=model_cfg.num_max_points,
                         max_num_next_clicks=3)
-    trainer.run(num_epochs=55, validation=True)
+    trainer.run(num_epochs=55, validation=False)
     

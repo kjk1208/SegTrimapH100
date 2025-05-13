@@ -36,10 +36,12 @@ class ISTrainer(object):
                  click_models=None,
                  prev_mask_drop_prob=0.0,
                  train_sampler=None,
+                 val_sampler=None,
                  ):
         self.cfg = cfg
         self.model_cfg = model_cfg
         self.train_sampler = train_sampler
+        self.val_sampler = val_sampler
         self.max_interactive_points = max_interactive_points
         self.loss_cfg = loss_cfg
         self.val_loss_cfg = deepcopy(loss_cfg)
@@ -79,16 +81,30 @@ class ISTrainer(object):
         logger.info(f'Dataset of {total_train_samples} samples was loaded for training.')        
         logger.info(f'Dataset of {valset.get_samples_number()} samples was loaded for validation.')
 
+        # self.train_data = DataLoader(
+        #     trainset, cfg.batch_size,
+        #     sampler=get_sampler(trainset, shuffle=True, distributed=cfg.distributed),
+        #     drop_last=True, pin_memory=True,
+        #     num_workers=cfg.workers
+        # )
+
+        # self.val_data = DataLoader(
+        #     valset, cfg.val_batch_size,
+        #     sampler=get_sampler(valset, shuffle=False, distributed=cfg.distributed),
+        #     drop_last=True, pin_memory=True,
+        #     num_workers=cfg.workers
+        # )
+
         self.train_data = DataLoader(
             trainset, cfg.batch_size,
-            sampler=get_sampler(trainset, shuffle=True, distributed=cfg.distributed),
+            sampler=self.train_sampler if self.train_sampler else get_sampler(trainset, shuffle=True, distributed=cfg.distributed),
             drop_last=True, pin_memory=True,
             num_workers=cfg.workers
         )
 
         self.val_data = DataLoader(
             valset, cfg.val_batch_size,
-            sampler=get_sampler(valset, shuffle=False, distributed=cfg.distributed),
+            sampler=self.val_sampler if self.val_sampler else get_sampler(valset, shuffle=False, distributed=cfg.distributed),
             drop_last=True, pin_memory=True,
             num_workers=cfg.workers
         )

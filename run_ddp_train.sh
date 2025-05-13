@@ -20,7 +20,8 @@ else
 fi
 
 # DDP 실행
-TORCH_DISTRIBUTED_DEBUG=DETAIL torchrun --nproc_per_node=$NGPU train.py $CONFIG \
+export PYTHONUNBUFFERED=1
+torchrun --nproc_per_node=$NGPU train.py $CONFIG \
     --batch-size $BATCH \
     --ngpus $NGPU \
     --upsample 'x4'

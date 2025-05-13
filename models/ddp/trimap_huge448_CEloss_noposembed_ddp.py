@@ -1,6 +1,6 @@
 # model/iter_mask/trimap_huge448_CEloss_noposembed_ddp.py
 
-import os
+import os, sys, logging
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -23,13 +23,13 @@ MODEL_NAME = 'new_augmentation_trimap_vit_huge448_CE_loss_noposembed_ddp'
 
 
 def main(cfg):
-    #dist.init_process_group(backend='nccl')
     if not dist.is_initialized():
         dist.init_process_group(backend='nccl')
     local_rank = int(os.environ['LOCAL_RANK'])
     torch.cuda.set_device(local_rank)
-    cfg.device = torch.device(f'cuda:{local_rank}')
-    
+    cfg.local_rank = local_rank
+    cfg.device = torch.device(f'cuda:{local_rank}')    
+
     model, model_cfg = init_model(cfg)
     
     # === 여기가 중요 ===
@@ -37,7 +37,8 @@ def main(cfg):
         logger.info(model)
         logger.info(get_config_repr(model._config))
 
-    model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
+    # model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
+    model = DDP(model, device_ids=[local_rank])
 
     global MODEL_NAME
     MODEL_NAME += f'_{cfg.upsample}'
@@ -110,7 +111,8 @@ def train(model, cfg, model_cfg, local_rank):
     full_train = ConcatDataset([trainset1, trainset2, trainset3])
     train_sampler = DistributedSampler(full_train, shuffle=True)  # DDP용 샘플러
 
-    valset = P3M10KTrimapDataset(cfg.P3M10K_TEST_PATH, 'val', crop_size=crop_size, do_aug=False, epoch_len=-1)
+    valset = P3M10KTrimapDataset(cfg.P3M10K_TEST_PATH, 'val', crop_size=crop_size, do_aug=True, epoch_len=-1)
+    val_sampler = DistributedSampler(valset, shuffle=False)
 
     optimizer_params = {
         'lr': 1e-4,
@@ -138,10 +140,15 @@ def train(model, cfg, model_cfg, local_rank):
                         layerwise_decay=cfg.layerwise_decay,
                         lr_scheduler=lr_scheduler,
                         train_sampler=train_sampler,
+                        val_sampler=val_sampler,
                         checkpoint_interval=[(0, 10), (50, 1)],
                         image_dump_interval=300,
                         metrics=[PerClassIoU(), MultiClassIoU(), UnknownIoU()],
                         max_interactive_points=model_cfg.num_max_points,
                         max_num_next_clicks=3)
+    
+    # 여기에 디버깅 출력 추가
+    if dist.get_rank() == 0:
+        print('[DEBUG] Rank 0 시작됨. 학습 로그 준비됨')
 
-    trainer.run(num_epochs=55, validation=True)
+    trainer.run(num_epochs=55, validation=False)

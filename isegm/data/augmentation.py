@@ -68,7 +68,8 @@ class JitterContourEdge:
 
             approx = cv2.approxPolyDP(contour.astype(np.float32), self.epsilon, closed=True)
 
-            if approx.shape[0] >= 2:
+            #if approx.shape[0] >= 2:
+            if approx is not None and hasattr(approx, 'shape') and approx.shape[0] >= 2:
                 approx = approx.astype(np.int32)
                 cv2.drawContours(jitter_edge_mask, [approx], -1, color=255, thickness=self.thickness)
 
