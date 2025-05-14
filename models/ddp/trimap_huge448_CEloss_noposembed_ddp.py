@@ -115,7 +115,7 @@ def train(model, cfg, model_cfg, local_rank):
     val_sampler = DistributedSampler(valset, shuffle=False)
 
     optimizer_params = {
-        'lr': 1e-4,
+        'lr': 5e-5,
         'betas': (0.9, 0.999),
         'eps': 1e-8
     }

@@ -9,7 +9,7 @@ from isegm.data.sample import DSample
 from isegm.data.augmentation import RandomEdgeNoise, JitterContourEdge, RandomHoleDrop
 
 class AIM500TrimapDataset(ISDataset):
-    def __init__(self, dataset_path, split='train', crop_size=(448, 448), do_aug=True, **kwargs):
+    def __init__(self, dataset_path, split='train', crop_size=(448, 448), do_aug=False, **kwargs):
         super().__init__(**kwargs)
         self.dataset_path = Path(dataset_path)
         self.split = split
