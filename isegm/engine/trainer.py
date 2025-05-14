@@ -78,8 +78,10 @@ class ISTrainer(object):
         else:
             total_train_samples = sum(d.get_samples_number() for d in trainset.datasets)
 
-        logger.info(f'Dataset of {total_train_samples} samples was loaded for training.')        
-        logger.info(f'Dataset of {valset.get_samples_number()} samples was loaded for validation.')
+        
+        if self.is_master:
+            logger.info(f'Dataset of {total_train_samples} samples was loaded for training.')        
+            logger.info(f'Dataset of {valset.get_samples_number()} samples was loaded for validation.')
 
         # self.train_data = DataLoader(
         #     trainset, cfg.batch_size,
@@ -115,9 +117,13 @@ class ISTrainer(object):
             self.optim = get_optimizer(model, optimizer, optimizer_params)
         model = self._load_weights(model)
 
-        if cfg.multi_gpu:
-            model = get_dp_wrapper(cfg.distributed)(model, device_ids=cfg.gpu_ids,
-                                                    output_device=cfg.gpu_ids[0])
+
+        if not cfg.distributed and cfg.multi_gpu:
+            model = get_dp_wrapper(False)(model, device_ids=cfg.gpu_ids,
+                                        output_device=cfg.gpu_ids[0])
+        # if cfg.multi_gpu:
+        #     model = get_dp_wrapper(cfg.distributed)(model, device_ids=cfg.gpu_ids,
+        #                                             output_device=cfg.gpu_ids[0])
 
         if self.is_master:
             logger.info(model)

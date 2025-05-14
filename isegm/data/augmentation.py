@@ -124,40 +124,40 @@ class RandomHoleDrop:
         data['seg_mask'] = (seg > 127).astype(np.uint8)[None, ...]
         return data
 
+if __name__ == '__main__':
+    mask_path = "/home/work/SegAlphamatte/datasets/AlphaDataset/Adobe_Composition/mask/goth_by_bugidifino-d4w7zms_40.png"
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    seg_mask = (mask > 127).astype(np.uint8)[None, ...]
 
-mask_path = "/home/work/SegAlphamatte/datasets/AlphaDataset/Adobe_Composition/mask/goth_by_bugidifino-d4w7zms_40.png"
-mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-seg_mask = (mask > 127).astype(np.uint8)[None, ...]
+    # 각 노이즈 인스턴스 생성
+    edge_aug = RandomEdgeNoise(erosion_prob=1.0, max_kernel_size=10)
+    jitter_aug = JitterContourEdge(prob=1.0, jitter_px=3, point_drop_ratio=0.05)
+    hole_aug = RandomHoleDrop(drop_prob=1.0, max_hole_area_ratio=0.03)
 
-# 각 노이즈 인스턴스 생성
-edge_aug = RandomEdgeNoise(erosion_prob=1.0, max_kernel_size=10)
-jitter_aug = JitterContourEdge(prob=1.0, jitter_px=3, point_drop_ratio=0.05)
-hole_aug = RandomHoleDrop(drop_prob=1.0, max_hole_area_ratio=0.03)
+    # 결과 생성
+    edge_result = edge_aug(image=None, seg_mask=deepcopy(seg_mask))['seg_mask']
+    jitter_result = jitter_aug(image=None, seg_mask=deepcopy(seg_mask))['seg_mask']
+    hole_result = hole_aug(image=None, seg_mask=deepcopy(seg_mask))['seg_mask']
 
-# 결과 생성
-edge_result = edge_aug(image=None, seg_mask=deepcopy(seg_mask))['seg_mask']
-jitter_result = jitter_aug(image=None, seg_mask=deepcopy(seg_mask))['seg_mask']
-hole_result = hole_aug(image=None, seg_mask=deepcopy(seg_mask))['seg_mask']
+    output_path = "/home/work/SegTrimap/seg_mask_noise_augmented.png"
 
-output_path = "/home/work/SegTrimap/seg_mask_noise_augmented.png"
+    # 시각화
+    fig, axs = plt.subplots(1, 4, figsize=(16, 4))
+    axs[0].imshow(seg_mask.squeeze(), cmap='gray')
+    axs[0].set_title("Original seg_mask")
+    axs[1].imshow(edge_result.squeeze(), cmap='gray')
+    axs[1].set_title("Erode")
+    axs[2].imshow(jitter_result.squeeze(), cmap='gray')
+    axs[2].set_title("Jitter Edge")
+    axs[3].imshow(hole_result.squeeze(), cmap='gray')
+    axs[3].set_title("Hole Drop")
+    for ax in axs:
+        ax.axis('off')
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
 
-# 시각화
-fig, axs = plt.subplots(1, 4, figsize=(16, 4))
-axs[0].imshow(seg_mask.squeeze(), cmap='gray')
-axs[0].set_title("Original seg_mask")
-axs[1].imshow(edge_result.squeeze(), cmap='gray')
-axs[1].set_title("Erode")
-axs[2].imshow(jitter_result.squeeze(), cmap='gray')
-axs[2].set_title("Jitter Edge")
-axs[3].imshow(hole_result.squeeze(), cmap='gray')
-axs[3].set_title("Hole Drop")
-for ax in axs:
-    ax.axis('off')
-plt.tight_layout()
-plt.savefig(output_path)
-plt.close()
-
-output_path
+    output_path
 
 
 

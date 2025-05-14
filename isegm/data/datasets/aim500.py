@@ -15,6 +15,7 @@ class AIM500TrimapDataset(ISDataset):
         self.split = split
         self.crop_size = crop_size
         self.do_aug = do_aug
+        self.eval_augmentator = kwargs.get('augmentator', None)
 
         self.image_dir = self.dataset_path / 'original'
         self.mask_dir = self.dataset_path / 'mask'
@@ -61,21 +62,20 @@ class AIM500TrimapDataset(ISDataset):
             gt_mask=trimap_mapped
         )
 
-    def augment_sample(self, sample: DSample) -> DSample:
+    def augment_sample(self, sample: DSample) -> DSample:   
         if not self.do_aug:
-            return sample
+            return sample     
+        image = self.color_aug(image=sample.image)['image']
 
+        # 2. geom_aug는 image와 mask를 함께 처리
         geom_out = self.geom_aug(
-            image=sample.image,
+            image=image,
             seg_mask=sample._encoded_masks.squeeze(),
             gt_mask=sample.gt_mask
         )
-
         image = geom_out['image']
         seg_mask = geom_out['seg_mask']
         gt_mask = geom_out['gt_mask']
-
-        image = self.color_aug(image=image)['image']
 
         for aug_fn in self.seg_aug:
             seg_mask = aug_fn(seg_mask=seg_mask)['seg_mask']
@@ -87,9 +87,26 @@ class AIM500TrimapDataset(ISDataset):
 
         return sample
 
+    def apply_eval_augmentator(self, sample: DSample) -> DSample:
+        if self.eval_augmentator is None:
+            return sample
+
+        out = self.eval_augmentator(
+            image=sample.image,
+            masks=[sample._encoded_masks.squeeze(), sample.gt_mask]
+        )
+        sample.image = out['image']
+        seg_mask, gt_mask = out['masks']
+        sample._encoded_masks = (seg_mask > 0).astype(np.uint8)[:, :, None]
+        sample.gt_mask = gt_mask
+        return sample
+
     def __getitem__(self, index):
         sample = self.get_sample(index)
-        sample = self.augment_sample(sample)
+        if self.do_aug:
+            sample = self.augment_sample(sample)
+        elif self.eval_augmentator is not None:
+            sample = self.apply_eval_augmentator(sample)
 
         seg_mask = sample._encoded_masks.squeeze()
         assert seg_mask.ndim == 2, f"[BUG] seg_mask should be 2D, got shape: {seg_mask.shape}"
@@ -104,6 +121,7 @@ class AIM500TrimapDataset(ISDataset):
 if __name__ == '__main__':
     dataset_path = '/home/work/SegTrimap/datasets/AIM-500'
 
+    # 학습용 테스트
     dataset = AIM500TrimapDataset(
         dataset_path=dataset_path,
         split='train',
@@ -119,11 +137,9 @@ if __name__ == '__main__':
         print("instances:", batch['instances'].shape)
         break
 
-    # 저장 디렉토리
     save_dir = Path('./aug_test_outputs_aim500')
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    # 시각화용 1개 샘플 추출
     sample = dataset[0]
 
     image = sample['images'].permute(1, 2, 0).numpy()
@@ -131,8 +147,7 @@ if __name__ == '__main__':
     cv2.imwrite(str(save_dir / 'image.png'), cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
 
     seg_mask = sample['seg_mask'].squeeze().numpy()
-    seg_mask_vis = (seg_mask * 255).astype(np.uint8)
-    cv2.imwrite(str(save_dir / 'seg_mask.png'), seg_mask_vis)
+    cv2.imwrite(str(save_dir / 'seg_mask.png'), (seg_mask * 255).astype(np.uint8))
 
     instances = sample['instances'].numpy()
     trimap_vis = np.zeros_like(instances, dtype=np.uint8)
@@ -140,60 +155,38 @@ if __name__ == '__main__':
     trimap_vis[instances == 2] = 255
     cv2.imwrite(str(save_dir / 'instances.png'), trimap_vis)
 
-# from pathlib import Path
-# import numpy as np
-# import cv2
-# import torch
-# from isegm.data.base import ISDataset
-# from isegm.data.sample import DSample
+    # ========================
+    # Evaluation Aug 시각화
+    # ========================
+    eval_augmentator = A.Compose([
+        A.LongestMaxSize(max_size=448),
+        A.PadIfNeeded(min_height=448, min_width=448, border_mode=0),
+    ])
 
-# class AIM500TrimapDataset(ISDataset):
-#     def __init__(self, dataset_path, split='train', **kwargs):
-#         super().__init__(**kwargs)
-#         self.dataset_path = Path(dataset_path)
-#         self.split = split
-#         self.image_dir = self.dataset_path / 'original'
-#         self.mask_dir = self.dataset_path / 'mask'
-#         self.trimap_dir = self.dataset_path / 'trimap'
-#         self.dataset_samples = sorted([p.stem for p in self.image_dir.glob('*.jpg')])
+    eval_dataset = AIM500TrimapDataset(
+        dataset_path=dataset_path,
+        split='val',
+        crop_size=(448, 448),
+        do_aug=False,
+        augmentator=eval_augmentator
+    )
 
-#     def get_sample(self, index) -> DSample:
-#         sample_id = self.dataset_samples[index]
+    eval_save_dir = Path('./aug_test_outputs_aim500_eval')
+    eval_save_dir.mkdir(parents=True, exist_ok=True)
 
-#         # 1. Load image
-#         image = cv2.imread(str(self.image_dir / f'{sample_id}.jpg'))
-#         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    eval_sample = eval_dataset[0]
 
-#         # 2. Load and binarize seg_mask from alpha matte
-#         alpha = cv2.imread(str(self.mask_dir / f'{sample_id}.png'), cv2.IMREAD_GRAYSCALE)
-#         seg_mask = (alpha >= 30).astype(np.uint8)  # [H, W]
-#         seg_mask = seg_mask[:, :, None]             # [H, W, 1]
+    image_eval = eval_sample['images'].permute(1, 2, 0).numpy()
+    image_eval = (image_eval * 255).clip(0, 255).astype(np.uint8)
+    cv2.imwrite(str(eval_save_dir / 'image.png'), cv2.cvtColor(image_eval, cv2.COLOR_RGB2BGR))
 
-#         # 3. Load GT trimap
-#         trimap = cv2.imread(str(self.trimap_dir / f'{sample_id}.png'), cv2.IMREAD_GRAYSCALE)
-#         trimap_mapped = np.zeros_like(trimap, dtype=np.int32)
-#         trimap_mapped[trimap <= 15] = 0        
-#         trimap_mapped[(trimap >= 15) & (trimap <= 229)] = 1
-#         trimap_mapped[trimap >= 230] = 2
+    seg_mask_eval = eval_sample['seg_mask'].squeeze().numpy()
+    cv2.imwrite(str(eval_save_dir / 'seg_mask.png'), (seg_mask_eval * 255).astype(np.uint8))
 
-#         sample = DSample(
-#             image=image,
-#             encoded_masks=seg_mask,
-#             objects_ids=[1],
-#             sample_id=index,
-#             gt_mask=trimap_mapped
-#         )
-#         sample.gt_mask = trimap_mapped
+    instances_eval = eval_sample['instances'].numpy()
+    trimap_vis_eval = np.zeros_like(instances_eval, dtype=np.uint8)
+    trimap_vis_eval[instances_eval == 1] = 127
+    trimap_vis_eval[instances_eval == 2] = 255
+    cv2.imwrite(str(eval_save_dir / 'instances.png'), trimap_vis_eval)
 
-#         return sample
-
-#     def __getitem__(self, index):
-#         sample = self.get_sample(index)
-#         sample = self.augment_sample(sample)
-
-#         return {
-#             'images': self.to_tensor(sample.image),                       # [3, H, W]
-#             'seg_mask': self.to_tensor(sample._encoded_masks).float(),   # [1, H, W]
-#             'instances': torch.from_numpy(sample.gt_mask).long()         # [H, W]
-#         }
-        
+    print("\n[INFO] Evaluation augment sample saved to:", str(eval_save_dir.resolve()))

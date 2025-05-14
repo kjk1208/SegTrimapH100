@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import torch
 import albumentations as A
+from torch.utils.data import DataLoader
 
 from isegm.data.base import ISDataset
 from isegm.data.sample import DSample
@@ -16,6 +17,7 @@ class COMPOSITIONTrimapDataset(ISDataset):
         self.split = split
         self.crop_size = crop_size
         self.do_aug = do_aug
+        self.eval_augmentator = kwargs.get('augmentator', None)
 
         self.image_dir = self.dataset_path / 'original'
         self.mask_dir = self.dataset_path / 'mask'
@@ -23,19 +25,17 @@ class COMPOSITIONTrimapDataset(ISDataset):
         self.dataset_samples = sorted([p.stem for p in self.image_dir.glob('*.jpg')])
 
         if self.do_aug:
-            self.replay_aug = A.ReplayCompose(
-                transforms=[
-                    A.HorizontalFlip(p=0.5),
-                    A.RandomBrightnessContrast(brightness_limit=(-0.25, 0.25), contrast_limit=(-0.15, 0.4), p=0.75),
-                    A.RGBShift(r_shift_limit=10, g_shift_limit=10, b_shift_limit=10, p=0.75),
-                    A.LongestMaxSize(max_size=crop_size[0]),
-                    A.PadIfNeeded(min_height=crop_size[0], min_width=crop_size[1], border_mode=0)
-                ],
-                additional_targets={
-                    'seg_mask': 'mask',
-                    'gt_mask': 'mask'
-                }
-            )
+            self.geom_aug = A.ReplayCompose([
+                A.HorizontalFlip(p=0.5),
+                A.LongestMaxSize(max_size=crop_size[0]),
+                A.PadIfNeeded(min_height=crop_size[0], min_width=crop_size[1], border_mode=0)
+            ], additional_targets={'seg_mask': 'mask', 'gt_mask': 'mask'})
+
+            self.color_aug = A.Compose([
+                A.RandomBrightnessContrast(brightness_limit=(-0.25, 0.25), contrast_limit=(-0.15, 0.4), p=0.75),
+                A.RGBShift(r_shift_limit=10, g_shift_limit=10, b_shift_limit=10, p=0.75)
+            ])
+
             self.seg_aug = [
                 RandomEdgeNoise(erosion_prob=0.2),
                 JitterContourEdge(prob=0.5),
@@ -58,7 +58,7 @@ class COMPOSITIONTrimapDataset(ISDataset):
 
         return DSample(
             image=image,
-            encoded_masks=seg_mask[:, :, None],  # [H, W, 1]
+            encoded_masks=seg_mask[:, :, None],
             objects_ids=[1],
             sample_id=index,
             gt_mask=trimap_mapped
@@ -68,41 +68,58 @@ class COMPOSITIONTrimapDataset(ISDataset):
         if not self.do_aug:
             return sample
 
-        seg_mask = sample._encoded_masks.squeeze()
-        aug = self.replay_aug(
-            image=sample.image,
-            seg_mask=seg_mask,
+        image = self.color_aug(image=sample.image)['image']
+
+        geom_out = self.geom_aug(
+            image=image,
+            seg_mask=sample._encoded_masks.squeeze(),
             gt_mask=sample.gt_mask
         )
-
-        sample.image = aug['image']
-        seg_mask = aug['seg_mask']
-        sample.gt_mask = aug['gt_mask']
+        image = geom_out['image']
+        seg_mask = geom_out['seg_mask']
+        gt_mask = geom_out['gt_mask']
 
         for aug_fn in self.seg_aug:
             seg_mask = aug_fn(seg_mask=seg_mask)['seg_mask']
-
         seg_mask = (seg_mask > 0).astype(np.uint8)
+
+        sample.image = image
         sample._encoded_masks = seg_mask[:, :, None]
+        sample.gt_mask = gt_mask
+        return sample
+
+    def apply_eval_augmentator(self, sample: DSample) -> DSample:
+        if self.eval_augmentator is None:
+            return sample
+
+        out = self.eval_augmentator(
+            image=sample.image,
+            masks=[sample._encoded_masks.squeeze(), sample.gt_mask]
+        )
+        sample.image = out['image']
+        seg_mask, gt_mask = out['masks']
+        sample._encoded_masks = (seg_mask > 0).astype(np.uint8)[:, :, None]
+        sample.gt_mask = gt_mask
         return sample
 
     def __getitem__(self, index):
         sample = self.get_sample(index)
-        sample = self.augment_sample(sample)
+        if self.do_aug:
+            sample = self.augment_sample(sample)
+        elif self.eval_augmentator is not None:
+            sample = self.apply_eval_augmentator(sample)
 
-        seg_mask = sample._encoded_masks
-        seg_mask = np.squeeze(seg_mask)
+        seg_mask = sample._encoded_masks.squeeze()
         assert seg_mask.ndim == 2, f"[BUG] seg_mask should be 2D, got shape: {seg_mask.shape}"
 
         return {
             'images': self.to_tensor(sample.image),
-            'seg_mask': torch.from_numpy(seg_mask).unsqueeze(0).float(),  # [1, H, W]
+            'seg_mask': torch.from_numpy(seg_mask).unsqueeze(0).float(),
             'instances': torch.from_numpy(sample.gt_mask).long()
         }
 
-if __name__ == '__main__':
-    from torch.utils.data import DataLoader
 
+if __name__ == '__main__':
     dataset_path = '/home/work/SegTrimap/datasets/Composition-431k-png'
 
     dataset = COMPOSITIONTrimapDataset(
@@ -112,94 +129,57 @@ if __name__ == '__main__':
         do_aug=True
     )
 
-    dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
-
-    for batch in dataloader:
-        print("images:", batch['images'].shape)       # [B, 3, H, W]
-        print("seg_mask:", batch['seg_mask'].shape)   # [B, 1, H, W]
-        print("instances:", batch['instances'].shape) # [B, H, W]
-        break
-
-    import os
-    import numpy as np
-    import cv2
-    from torchvision.utils import save_image
-    from pathlib import Path
-
-    # 저장할 디렉토리 설정
-    save_dir = Path('./aug_test_outputs')
+    save_dir = Path('./aug_test_outputs_composition')
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    # 하나의 sample 추출
-    sample = dataset[1]
+    sample = dataset[0]
 
-    # image 저장
-    image = sample['images'].permute(1, 2, 0).numpy()  # [H, W, 3]
+    image = sample['images'].permute(1, 2, 0).numpy()
     image = (image * 255).clip(0, 255).astype(np.uint8)
     cv2.imwrite(str(save_dir / 'image.png'), cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
 
-    # seg_mask 저장
     seg_mask = sample['seg_mask'].squeeze().numpy()
-    print("seg_mask min/max:", seg_mask.min(), seg_mask.max(), "dtype:", seg_mask.dtype)
-    print("unique:", np.unique(seg_mask))
-    seg_mask_vis = (seg_mask * 255).clip(0, 255).astype(np.uint8)
+    seg_mask_vis = (seg_mask * 255).astype(np.uint8)
     cv2.imwrite(str(save_dir / 'seg_mask.png'), seg_mask_vis)
 
-    # instances 저장 (값은 있지만 너무 어두움 → 시각화용 변환)
     instances = sample['instances'].numpy().astype(np.uint8)
-    print("instances unique:", np.unique(instances))
     trimap_vis = np.zeros_like(instances, dtype=np.uint8)
     trimap_vis[instances == 1] = 127
     trimap_vis[instances == 2] = 255
-    cv2.imwrite(str(save_dir / 'instances.png'), trimap_vis)
+    cv2.imwrite(str(save_dir / 'trimap.png'), trimap_vis)
 
+    # ========================
+    # Evaluation Aug 시각화
+    # ========================
+    eval_augmentator = A.Compose([
+        A.LongestMaxSize(max_size=448),
+        A.PadIfNeeded(min_height=448, min_width=448, border_mode=0),
+    ])
 
-# class COMPOSITIONTrimapDataset(ISDataset):
-#     def __init__(self, dataset_path, split='train', **kwargs):
-#         super().__init__(**kwargs)
-#         self.dataset_path = Path(dataset_path)
-#         self.split = split
-#         self.image_dir = self.dataset_path / 'original'
-#         self.mask_dir = self.dataset_path / 'mask'
-#         self.trimap_dir = self.dataset_path / 'trimap'
-#         self.dataset_samples = sorted([p.stem for p in self.image_dir.glob('*.jpg')])
+    eval_dataset = COMPOSITIONTrimapDataset(
+        dataset_path=dataset_path,
+        split='val',
+        crop_size=(448, 448),
+        do_aug=False,
+        augmentator=eval_augmentator
+    )
 
-#     def get_sample(self, index) -> DSample:
-#         sample_id = self.dataset_samples[index]
+    eval_save_dir = Path('./aug_test_outputs_composition_eval')
+    eval_save_dir.mkdir(parents=True, exist_ok=True)
 
-#         # 1. Load image
-#         image = cv2.imread(str(self.image_dir / f'{sample_id}.jpg'))
-#         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    eval_sample = eval_dataset[0]
 
-#         # 2. Load and binarize seg_mask from alpha matte
-#         alpha = cv2.imread(str(self.mask_dir / f'{sample_id}.png'), cv2.IMREAD_GRAYSCALE)
-#         seg_mask = (alpha >= 30).astype(np.uint8)  # [H, W]
-#         seg_mask = seg_mask[:, :, None]             # [H, W, 1]
+    image_eval = eval_sample['images'].permute(1, 2, 0).numpy()
+    image_eval = (image_eval * 255).clip(0, 255).astype(np.uint8)
+    cv2.imwrite(str(eval_save_dir / 'image.png'), cv2.cvtColor(image_eval, cv2.COLOR_RGB2BGR))
 
-#         # 3. Load GT trimap
-#         trimap = cv2.imread(str(self.trimap_dir / f'{sample_id}.png'), cv2.IMREAD_GRAYSCALE)
-#         trimap_mapped = np.zeros_like(trimap, dtype=np.int32)
-#         trimap_mapped[trimap <= 15] = 0        
-#         trimap_mapped[(trimap >= 15) & (trimap <= 229)] = 1
-#         trimap_mapped[trimap >= 230] = 2
+    seg_mask_eval = eval_sample['seg_mask'].squeeze().numpy()
+    cv2.imwrite(str(eval_save_dir / 'seg_mask.png'), (seg_mask_eval * 255).astype(np.uint8))
 
-#         sample = DSample(
-#             image=image,
-#             encoded_masks=seg_mask,
-#             objects_ids=[1],
-#             sample_id=index,
-#             gt_mask=trimap_mapped
-#         )
-#         sample.gt_mask = trimap_mapped
+    trimap_eval = eval_sample['instances'].numpy()
+    trimap_vis_eval = np.zeros_like(trimap_eval, dtype=np.uint8)
+    trimap_vis_eval[trimap_eval == 1] = 127
+    trimap_vis_eval[trimap_eval == 2] = 255
+    cv2.imwrite(str(eval_save_dir / 'trimap.png'), trimap_vis_eval)
 
-#         return sample
-
-#     def __getitem__(self, index):
-#         sample = self.get_sample(index)
-#         sample = self.augment_sample(sample)
-
-#         return {
-#             'images': self.to_tensor(sample.image),                       # [3, H, W]
-#             'seg_mask': self.to_tensor(sample._encoded_masks).float(),   # [1, H, W]
-#             'instances': torch.from_numpy(sample.gt_mask).long()         # [H, W]
-#         }
+    print("\n[INFO] Evaluation augment sample saved to:", str(eval_save_dir.resolve()))
