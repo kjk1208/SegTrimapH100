@@ -6,9 +6,10 @@ from tqdm import tqdm
 import numpy as np
 import cv2
 import datetime
+import torch.nn.functional as F
 
 from isegm.data.datasets.aim500 import AIM500TrimapDataset
-from isegm.model.is_trimap_plaintvit_model import TrimapPlainVitModel
+from isegm.model.is_trimap_plaintvit_model_noposembed import NoPosEmbedTrimapPlainVitModel
 from isegm.model.modeling.pos_embed import interpolate_pos_embed_inference
 from albumentations import Compose, LongestMaxSize, PadIfNeeded
 
@@ -36,7 +37,7 @@ def build_model(infer_img_size):
         channels={'x1': 256, 'x2': 128, 'x4': 64}['x4'],
     )
 
-    model = TrimapPlainVitModel(
+    model = NoPosEmbedTrimapPlainVitModel(
         backbone_params=backbone_params,
         neck_params=neck_params,
         head_params=head_params,
@@ -87,8 +88,11 @@ def main(args):
 
     model = build_model(infer_img_size)
     ckpt = torch.load(args.ckpt_path, map_location='cpu')
-    model.load_state_dict(ckpt['state_dict'], strict=False)
-    interpolate_pos_embed_inference(model.backbone, infer_img_size=infer_img_size, device='cpu')
+    state_dict = ckpt['state_dict']
+    if list(state_dict.keys())[0].startswith('module.'):
+        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict, strict=False)
+    # interpolate_pos_embed_inference(model.backbone, infer_img_size=infer_img_size, device='cpu')
     model.eval()
 
     test_augmentator = Compose([
@@ -99,6 +103,7 @@ def main(args):
     testset = AIM500TrimapDataset(
         dataset_path=args.data_root,
         split='val',
+        do_aug=False,
         augmentator=test_augmentator,
         epoch_len=-1
     )
@@ -111,6 +116,7 @@ def main(args):
             gt_trimap = batch['instances']   # [B, H, W]
             output = model(image, seg_mask)
             pred = output['instances']      # [B, 3, H, W]
+            pred = F.interpolate(pred, size=gt_trimap.shape[-2:], mode='bilinear', align_corners=False)
 
             for j in range(image.size(0)):   # loop over batch
                 sample_id = testset.dataset_samples[i * args.batch_size + j]

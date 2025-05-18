@@ -5,7 +5,7 @@
 USER_ID=$(whoami)
 
 #User input
-WEIGHT_PATH="./output/loss/composition_p3m10k_am2k_trimap_vit_huge448_focalloss_dtloss/001/checkpoints/020.pth"
+WEIGHT_PATH="./output/ddp/new_augmentation_trimap_vit_huge448_CE_loss_noposembed_ddp/000/checkpoints/054.pth"
 #User input
 
 if [ "$USER_ID" == "kjk" ]; then

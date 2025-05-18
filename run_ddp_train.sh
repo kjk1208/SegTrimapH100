@@ -9,7 +9,7 @@ CONFIG="./models/ddp/trimap_huge448_CEloss_noposembed_ddp.py"
 if [ "$USER_ID" == "kjk" ]; then
     echo "[INFO] Running on A6000 서버 (사용자: kjk)"
     NGPU=4
-    BATCH=32
+    BATCH=16
 elif [ "$USER_ID" == "work" ]; then
     echo "[INFO] Running on H100 서버 (사용자: work)"
     NGPU=2

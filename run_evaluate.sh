@@ -5,7 +5,7 @@
 USER_ID=$(whoami)
 
 #User input
-WEIGHT_PATH="/home/work/SegTrimap/output/loss/all_dataset_trimap_vit_huge448_CE_loss/000/checkpoints/last_checkpoint.pth"
+WEIGHT_PATH="/home/work/SegTrimap/output/ddp/new_augmentation_trimap_vit_huge448_CE_loss_Focal_loss_noposembed_ddp/000/checkpoints/054.pth"
 #User input
 
 LOG_DIR="./evaluation/eval_logs"

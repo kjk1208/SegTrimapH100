@@ -88,3 +88,9 @@ sh run_train.sh
 ```
 python train.py models/loss/trimap_huge448_nfl_dt_loss.py --batch-size=32 --ngpus=4 --upsample='x4'
 ```
+
+- ddp로 실행시 아래 코드를 실행하세요
+- 이때 H100 서버와 71번 서버에서만 동작 하도록 해두었기 때문에 일부 수정해야함 아래 쉘스크립트 수정 요망
+```
+sh run_ddp_train.sh
+```

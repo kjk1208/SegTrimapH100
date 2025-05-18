@@ -1,0 +1,23 @@
+augmentation 완전 고친 버전
+
+Eval_weight_path: /home/work/SegTrimap/output/ddp/new_augmentation_trimap_vit_huge448_CE_loss_noposembed_ddp/001/checkpoints/054.pth
+Dataset: Composition-1K
+Samples: 1000
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9096	0.6930	0.6136	0.7382
+
+Dataset: P3M-500-P
+Samples: 500
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9858	0.8016	0.9413	0.9096
+
+Dataset: AIM-500
+Samples: 500
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9709	0.8069	0.7950	0.8604
+
+Dataset: AM-200
+Samples: 200
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9917	0.8625	0.9069	0.9204
+

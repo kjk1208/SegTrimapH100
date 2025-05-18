@@ -127,4 +127,36 @@ def interpolate_pos_embed_inference(model, infer_img_size, device):
         model.pos_embed = new_pos_embed
         model.patch_embed.grid_size = infer_grid_size
 
+def interpolate_pos_embed_inference_no_pos_embed(model, infer_img_size, device):
+    """
+    This is a no-op placeholder function for models that do not use positional embeddings.
+    """
+    if not hasattr(model, "pos_embed"):
+        print("[INFO] This model does not use pos_embed. Skipping interpolation.")
+        return
+
+    # If somehow pos_embed exists, fallback to original function (for compatibility)
+    pos_embed = model.pos_embed
+    embedding_size = pos_embed.shape[-1]
+    patch_embed = model.patch_embed
+    num_patches = patch_embed.num_patches
+    num_extra_tokens = pos_embed.shape[-2] - num_patches
+    grid_size = patch_embed.grid_size
+    patch_size = patch_embed.patch_size
+
+    infer_grid_size = (infer_img_size[0] // patch_size[0], infer_img_size[1] // patch_size[1])
+    orig_size, new_size = grid_size, infer_grid_size
+
+    if orig_size != new_size:
+        extra_tokens = pos_embed[:, :num_extra_tokens]
+        pos_tokens = pos_embed[:, num_extra_tokens:]
+        pos_tokens = pos_tokens.reshape(-1, orig_size[0], orig_size[1], embedding_size).permute(0, 3, 1, 2)
+        pos_tokens = torch.nn.functional.interpolate(
+            pos_tokens, size=new_size, mode='bicubic', align_corners=False)
+        pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
+        new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
+        new_pos_embed = torch.nn.Parameter(new_pos_embed).to(device)
+
+        model.pos_embed = new_pos_embed
+        model.patch_embed.grid_size = infer_grid_size
 

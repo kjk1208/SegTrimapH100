@@ -1,0 +1,2 @@
+
+Eval_weight_path: /home/work/SegTrimap/output/ddp/new_augmentation_trimap_vit_huge448_CE_loss_Focal_loss_noposembed_ddp/000/checkpoints/054.pth

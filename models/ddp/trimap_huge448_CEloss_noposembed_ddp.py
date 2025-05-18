@@ -6,7 +6,6 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from isegm.utils.exp_imports.default import *
-from torch.nn import CrossEntropyLoss
 
 from isegm.utils.serialization import get_config_repr
 
@@ -16,10 +15,12 @@ from isegm.data.datasets.am2k import AM2KTrimapDataset
 from isegm.data.datasets.composition import COMPOSITIONTrimapDataset
 from torch.utils.data import ConcatDataset, DataLoader, DistributedSampler
 
-from isegm.model.trimap_combineloss import CombinedLoss
-from isegm.model.losses import NormalizedFocalLossSoftmax, UnknownRegionDTLoss
+# from isegm.model.trimap_combineloss import CombinedLoss
+# from isegm.model.losses import NormalizedFocalLossSoftmax, UnknownRegionDTLoss
+# from torch.nn import CrossEntropyLoss
+from isegm.model.trimap_ce_combineloss import CECombinedLoss
 
-MODEL_NAME = 'new_augmentation_trimap_vit_huge448_CE_loss_noposembed_ddp'
+MODEL_NAME = 'new_augmentation_trimap_vit_huge448_CE_loss_Focal_loss_noposembed_ddp'
 
 
 def main(cfg):
@@ -100,7 +101,8 @@ def train(model, cfg, model_cfg, local_rank):
     crop_size = model_cfg.crop_size
 
     loss_cfg = edict()
-    loss_cfg.instance_loss = nn.CrossEntropyLoss()
+    # loss_cfg.instance_loss = nn.CrossEntropyLoss()
+    loss_cfg.instance_loss = CECombinedLoss(ce_weight = 1.0, focal_weight=0.5)
     loss_cfg.instance_loss_weight = 1.0
 
     # Dataset
@@ -115,7 +117,7 @@ def train(model, cfg, model_cfg, local_rank):
     val_sampler = DistributedSampler(valset, shuffle=False)
 
     optimizer_params = {
-        'lr': 5e-5,
+        'lr': 2e-4,
         'betas': (0.9, 0.999),
         'eps': 1e-8
     }

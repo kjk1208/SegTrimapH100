@@ -125,13 +125,15 @@ class RandomHoleDrop:
         return data
 
 if __name__ == '__main__':
-    mask_path = "/home/work/SegAlphamatte/datasets/AlphaDataset/Adobe_Composition/mask/goth_by_bugidifino-d4w7zms_40.png"
+    mask_path = "/home/work/SegTrimap/datasets/Composition-1k-testset/mask/sea-sunny-person-beach_9.png"
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-    seg_mask = (mask > 127).astype(np.uint8)[None, ...]
+    seg_mask = (mask >= 30).astype(np.uint8)
+    seg_mask = cv2.resize(seg_mask, (448, 448), interpolation=cv2.INTER_NEAREST)
+    #seg_mask = (alpha >= 30).astype(np.uint8)[None, ...]
 
     # 각 노이즈 인스턴스 생성
     edge_aug = RandomEdgeNoise(erosion_prob=1.0, max_kernel_size=10)
-    jitter_aug = JitterContourEdge(prob=1.0, jitter_px=3, point_drop_ratio=0.05)
+    jitter_aug = JitterContourEdge(prob=1.0, jitter_px=3, point_drop_ratio=0.05, thickness=4, epsilon=6.0)
     hole_aug = RandomHoleDrop(drop_prob=1.0, max_hole_area_ratio=0.03)
 
     # 결과 생성
@@ -154,7 +156,7 @@ if __name__ == '__main__':
     for ax in axs:
         ax.axis('off')
     plt.tight_layout()
-    plt.savefig(output_path)
+    plt.savefig(output_path, bbox_inches='tight')
     plt.close()
 
     output_path

@@ -1,0 +1,22 @@
+
+Eval_weight_path: /home/work/SegTrimap/output/ddp/new_augmentation_trimap_vit_huge448_CE_loss_Focal_loss_noposembed_ddp/000/checkpoints/054.pth
+Dataset: Composition-1K
+Samples: 1000
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9185	0.6709	0.5884	0.7260
+
+Dataset: P3M-500-P
+Samples: 500
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9906	0.8362	0.9490	0.9253
+
+Dataset: AIM-500
+Samples: 500
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9705	0.7994	0.7887	0.8553
+
+Dataset: AM-200
+Samples: 200
+BG IoU	Unknown IoU	FG IoU	Mean IoU
+0.9913	0.8503	0.8986	0.9134
+

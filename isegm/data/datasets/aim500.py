@@ -140,7 +140,7 @@ if __name__ == '__main__':
     save_dir = Path('./aug_test_outputs_aim500')
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    sample = dataset[0]
+    sample = dataset[2]
 
     image = sample['images'].permute(1, 2, 0).numpy()
     image = (image * 255).clip(0, 255).astype(np.uint8)
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     eval_save_dir = Path('./aug_test_outputs_aim500_eval')
     eval_save_dir.mkdir(parents=True, exist_ok=True)
 
-    eval_sample = eval_dataset[0]
+    eval_sample = eval_dataset[2]
 
     image_eval = eval_sample['images'].permute(1, 2, 0).numpy()
     image_eval = (image_eval * 255).clip(0, 255).astype(np.uint8)
@@ -190,3 +190,35 @@ if __name__ == '__main__':
     cv2.imwrite(str(eval_save_dir / 'instances.png'), trimap_vis_eval)
 
     print("\n[INFO] Evaluation augment sample saved to:", str(eval_save_dir.resolve()))
+
+    concat_save_path = save_dir / 'concat_visualization.png'
+
+    # original image: [H, W, 3], RGB
+    vis_image = image.copy()
+
+    # seg_mask (binary) → 3채널 grayscale
+    vis_seg = cv2.cvtColor((seg_mask * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+
+    # trimap (0,127,255) → 3채널 grayscale
+    vis_trimap = cv2.cvtColor(trimap_vis, cv2.COLOR_GRAY2BGR)
+
+    # concat
+    concat_img = np.concatenate([vis_image, vis_seg, vis_trimap], axis=1)
+    cv2.imwrite(str(concat_save_path), cv2.cvtColor(concat_img, cv2.COLOR_RGB2BGR))
+    print(f"[INFO] Concatenated visualization saved to: {concat_save_path}")
+
+    concat_eval_path = eval_save_dir / 'concat_visualization.png'
+
+    # original image
+    vis_image_eval = image_eval.copy()
+
+    # seg_mask (binary) → 3채널 grayscale
+    vis_seg_eval = cv2.cvtColor((seg_mask_eval * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+
+    # trimap (0,127,255) → 3채널 grayscale
+    vis_trimap_eval = cv2.cvtColor(trimap_vis_eval, cv2.COLOR_GRAY2BGR)
+
+    # concat
+    concat_eval_img = np.concatenate([vis_image_eval, vis_seg_eval, vis_trimap_eval], axis=1)
+    cv2.imwrite(str(concat_eval_path), cv2.cvtColor(concat_eval_img, cv2.COLOR_RGB2BGR))
+    print(f"[INFO] Concatenated evaluation image saved to: {concat_eval_path}")
